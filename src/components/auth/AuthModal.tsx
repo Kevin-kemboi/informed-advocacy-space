@@ -7,71 +7,56 @@ import { Label } from "@/components/ui/label";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
-import { useToast } from "@/hooks/use-toast";
+import { useAuth } from "@/hooks/useAuth";
 
 interface AuthModalProps {
   isOpen: boolean;
   onClose: () => void;
-  onLogin: (userData: any) => void;
 }
 
-export function AuthModal({ isOpen, onClose, onLogin }: AuthModalProps) {
+export function AuthModal({ isOpen, onClose }: AuthModalProps) {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [fullName, setFullName] = useState("");
   const [role, setRole] = useState("citizen");
-  const { toast } = useToast();
+  const [loading, setLoading] = useState(false);
+  const { signIn, signUp } = useAuth();
 
-  const handleLogin = () => {
-    if (!email || !password) {
-      toast({
-        title: "Error",
-        description: "Please fill in all fields",
-        variant: "destructive"
-      });
-      return;
+  const handleLogin = async () => {
+    if (!email || !password) return;
+    
+    setLoading(true);
+    try {
+      await signIn(email, password);
+      onClose();
+      resetForm();
+    } catch (error) {
+      // Error is handled in useAuth hook
+    } finally {
+      setLoading(false);
     }
-
-    // Mock authentication - in real app this would use Supabase auth
-    const userData = {
-      id: Date.now().toString(),
-      email,
-      fullName: email === "admin@gov.com" ? "Admin User" : 
-               email === "official@gov.com" ? "Government Official" : "Citizen User",
-      role: email === "admin@gov.com" ? "admin" : 
-            email === "official@gov.com" ? "government_official" : "citizen"
-    };
-
-    onLogin(userData);
-    toast({
-      title: "Welcome!",
-      description: `Logged in as ${userData.role}`
-    });
   };
 
-  const handleRegister = () => {
-    if (!email || !password || !fullName) {
-      toast({
-        title: "Error",
-        description: "Please fill in all fields",
-        variant: "destructive"
-      });
-      return;
+  const handleRegister = async () => {
+    if (!email || !password || !fullName) return;
+    
+    setLoading(true);
+    try {
+      await signUp(email, password, fullName, role);
+      onClose();
+      resetForm();
+    } catch (error) {
+      // Error is handled in useAuth hook
+    } finally {
+      setLoading(false);
     }
+  };
 
-    // Mock registration
-    const userData = {
-      id: Date.now().toString(),
-      email,
-      fullName,
-      role
-    };
-
-    onLogin(userData);
-    toast({
-      title: "Account Created!",
-      description: "Welcome to CivicConnect"
-    });
+  const resetForm = () => {
+    setEmail("");
+    setPassword("");
+    setFullName("");
+    setRole("citizen");
   };
 
   return (
@@ -104,6 +89,7 @@ export function AuthModal({ isOpen, onClose, onLogin }: AuthModalProps) {
                     value={email}
                     onChange={(e) => setEmail(e.target.value)}
                     placeholder="your.email@example.com"
+                    disabled={loading}
                   />
                 </div>
                 <div>
@@ -113,18 +99,12 @@ export function AuthModal({ isOpen, onClose, onLogin }: AuthModalProps) {
                     type="password"
                     value={password}
                     onChange={(e) => setPassword(e.target.value)}
+                    disabled={loading}
                   />
                 </div>
-                <Button onClick={handleLogin} className="w-full">
-                  Login
+                <Button onClick={handleLogin} className="w-full" disabled={loading}>
+                  {loading ? "Signing in..." : "Login"}
                 </Button>
-                <div className="text-sm text-muted-foreground">
-                  <p>Demo accounts:</p>
-                  <p>• admin@gov.com (Admin)</p>
-                  <p>• official@gov.com (Government Official)</p>
-                  <p>• Any other email (Citizen)</p>
-                  <p>Password: any</p>
-                </div>
               </CardContent>
             </Card>
           </TabsContent>
@@ -145,6 +125,7 @@ export function AuthModal({ isOpen, onClose, onLogin }: AuthModalProps) {
                     value={fullName}
                     onChange={(e) => setFullName(e.target.value)}
                     placeholder="John Doe"
+                    disabled={loading}
                   />
                 </div>
                 <div>
@@ -155,6 +136,7 @@ export function AuthModal({ isOpen, onClose, onLogin }: AuthModalProps) {
                     value={email}
                     onChange={(e) => setEmail(e.target.value)}
                     placeholder="your.email@example.com"
+                    disabled={loading}
                   />
                 </div>
                 <div>
@@ -164,11 +146,12 @@ export function AuthModal({ isOpen, onClose, onLogin }: AuthModalProps) {
                     type="password"
                     value={password}
                     onChange={(e) => setPassword(e.target.value)}
+                    disabled={loading}
                   />
                 </div>
                 <div>
                   <Label>Role</Label>
-                  <RadioGroup value={role} onValueChange={setRole}>
+                  <RadioGroup value={role} onValueChange={setRole} disabled={loading}>
                     <div className="flex items-center space-x-2">
                       <RadioGroupItem value="citizen" id="citizen" />
                       <Label htmlFor="citizen">Citizen</Label>
@@ -179,8 +162,8 @@ export function AuthModal({ isOpen, onClose, onLogin }: AuthModalProps) {
                     </div>
                   </RadioGroup>
                 </div>
-                <Button onClick={handleRegister} className="w-full">
-                  Register
+                <Button onClick={handleRegister} className="w-full" disabled={loading}>
+                  {loading ? "Creating account..." : "Register"}
                 </Button>
               </CardContent>
             </Card>

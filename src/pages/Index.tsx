@@ -1,38 +1,26 @@
-
-import { useState, useEffect } from "react";
+import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Badge } from "@/components/ui/badge";
 import { MapPin, MessageSquare, Vote, AlertTriangle, Users, TrendingUp, Shield, Zap, Heart, Globe } from "lucide-react";
 import { AuthModal } from "@/components/auth/AuthModal";
 import { CitizenDashboard } from "@/components/dashboard/CitizenDashboard";
 import { OfficialDashboard } from "@/components/dashboard/OfficialDashboard";
 import { AdminDashboard } from "@/components/dashboard/AdminDashboard";
+import { useAuth } from "@/hooks/useAuth";
 
 export default function Index() {
-  const [user, setUser] = useState<any>(null);
   const [showAuthModal, setShowAuthModal] = useState(false);
+  const { user, profile, loading } = useAuth();
 
-  // Mock user for demo - in real app this would come from Supabase auth
-  useEffect(() => {
-    const mockUser = localStorage.getItem('mockUser');
-    if (mockUser) {
-      setUser(JSON.parse(mockUser));
-    }
-  }, []);
+  if (loading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-slate-50 via-blue-50 to-purple-50">
+        <div className="animate-spin rounded-full h-32 w-32 border-b-2 border-blue-600"></div>
+      </div>
+    );
+  }
 
-  const handleLogin = (userData: any) => {
-    setUser(userData);
-    localStorage.setItem('mockUser', JSON.stringify(userData));
-    setShowAuthModal(false);
-  };
-
-  const handleLogout = () => {
-    setUser(null);
-    localStorage.removeItem('mockUser');
-  };
-
-  if (!user) {
+  if (!user || !profile) {
     return (
       <div className="min-h-screen bg-gradient-to-br from-slate-50 via-blue-50 to-purple-50">
         {/* Navigation */}
@@ -226,7 +214,6 @@ export default function Index() {
         <AuthModal 
           isOpen={showAuthModal} 
           onClose={() => setShowAuthModal(false)}
-          onLogin={handleLogin}
         />
       </div>
     );
@@ -234,13 +221,13 @@ export default function Index() {
 
   // Render appropriate dashboard based on user role
   const renderDashboard = () => {
-    switch (user.role) {
+    switch (profile.role) {
       case 'government_official':
-        return <OfficialDashboard user={user} onLogout={handleLogout} />;
+        return <OfficialDashboard />;
       case 'admin':
-        return <AdminDashboard user={user} onLogout={handleLogout} />;
+        return <AdminDashboard />;
       default:
-        return <CitizenDashboard user={user} onLogout={handleLogout} />;
+        return <CitizenDashboard />;
     }
   };
 
