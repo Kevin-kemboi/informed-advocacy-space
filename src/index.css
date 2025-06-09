@@ -1,8 +1,9 @@
+
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
 
-/* Definition of the design system. All colors, gradients, fonts, etc should be defined here. */
+/* Modern Civic Design System */
 
 @layer base {
   :root {
@@ -15,8 +16,18 @@
     --popover: 0 0% 100%;
     --popover-foreground: 222.2 84% 4.9%;
 
-    --primary: 222.2 47.4% 11.2%;
-    --primary-foreground: 210 40% 98%;
+    /* Civic Color System */
+    --civic-blue: 214 100% 59%;
+    --civic-blue-foreground: 210 40% 98%;
+    
+    --civic-green: 160 84% 39%;
+    --civic-green-foreground: 210 40% 98%;
+    
+    --civic-purple: 262 83% 58%;
+    --civic-purple-foreground: 210 40% 98%;
+
+    --primary: var(--civic-blue);
+    --primary-foreground: var(--civic-blue-foreground);
 
     --secondary: 210 40% 96.1%;
     --secondary-foreground: 222.2 47.4% 11.2%;
@@ -24,71 +35,30 @@
     --muted: 210 40% 96.1%;
     --muted-foreground: 215.4 16.3% 46.9%;
 
-    --accent: 210 40% 96.1%;
-    --accent-foreground: 222.2 47.4% 11.2%;
+    --accent: var(--civic-purple);
+    --accent-foreground: var(--civic-purple-foreground);
 
     --destructive: 0 84.2% 60.2%;
     --destructive-foreground: 210 40% 98%;
 
     --border: 214.3 31.8% 91.4%;
     --input: 214.3 31.8% 91.4%;
-    --ring: 222.2 84% 4.9%;
+    --ring: var(--civic-blue);
 
-    --radius: 0.5rem;
+    --radius: 0.75rem;
 
-    --sidebar-background: 0 0% 98%;
-
-    --sidebar-foreground: 240 5.3% 26.1%;
-
-    --sidebar-primary: 240 5.9% 10%;
-
-    --sidebar-primary-foreground: 0 0% 98%;
-
-    --sidebar-accent: 240 4.8% 95.9%;
-
-    --sidebar-accent-foreground: 240 5.9% 10%;
-
-    --sidebar-border: 220 13% 91%;
-
-    --sidebar-ring: 217.2 91.2% 59.8%;
+    /* Custom Civic Variables */
+    --civic-gradient: linear-gradient(135deg, hsl(var(--civic-blue)) 0%, hsl(var(--civic-purple)) 100%);
+    --civic-shadow: 0 4px 6px -1px rgb(0 0 0 / 0.1), 0 2px 4px -2px rgb(0 0 0 / 0.1);
+    --civic-shadow-lg: 0 10px 15px -3px rgb(0 0 0 / 0.1), 0 4px 6px -4px rgb(0 0 0 / 0.1);
   }
 
   .dark {
     --background: 222.2 84% 4.9%;
     --foreground: 210 40% 98%;
-
-    --card: 222.2 84% 4.9%;
-    --card-foreground: 210 40% 98%;
-
-    --popover: 222.2 84% 4.9%;
-    --popover-foreground: 210 40% 98%;
-
-    --primary: 210 40% 98%;
-    --primary-foreground: 222.2 47.4% 11.2%;
-
-    --secondary: 217.2 32.6% 17.5%;
-    --secondary-foreground: 210 40% 98%;
-
-    --muted: 217.2 32.6% 17.5%;
-    --muted-foreground: 215 20.2% 65.1%;
-
-    --accent: 217.2 32.6% 17.5%;
-    --accent-foreground: 210 40% 98%;
-
-    --destructive: 0 62.8% 30.6%;
-    --destructive-foreground: 210 40% 98%;
-
-    --border: 217.2 32.6% 17.5%;
-    --input: 217.2 32.6% 17.5%;
-    --ring: 212.7 26.8% 83.9%;
-    --sidebar-background: 240 5.9% 10%;
-    --sidebar-foreground: 240 4.8% 95.9%;
-    --sidebar-primary: 224.3 76.3% 48%;
-    --sidebar-primary-foreground: 0 0% 100%;
-    --sidebar-accent: 240 3.7% 15.9%;
-    --sidebar-accent-foreground: 240 4.8% 95.9%;
-    --sidebar-border: 240 3.7% 15.9%;
-    --sidebar-ring: 217.2 91.2% 59.8%;
+    --civic-blue: 214 100% 59%;
+    --civic-green: 160 84% 39%;
+    --civic-purple: 262 83% 58%;
   }
 }
 
@@ -99,5 +69,135 @@
 
   body {
     @apply bg-background text-foreground;
+    font-feature-settings: "rlig" 1, "calt" 1;
   }
+}
+
+@layer components {
+  /* Civic Design Utilities */
+  .civic-gradient {
+    background: var(--civic-gradient);
+  }
+  
+  .civic-shadow {
+    box-shadow: var(--civic-shadow);
+  }
+  
+  .civic-shadow-lg {
+    box-shadow: var(--civic-shadow-lg);
+  }
+
+  /* Enhanced Card Designs */
+  .civic-card {
+    @apply bg-white rounded-xl border border-gray-200 civic-shadow transition-all duration-300 hover:civic-shadow-lg hover:scale-[1.02];
+  }
+
+  .civic-card-gradient {
+    @apply civic-gradient text-white rounded-xl civic-shadow transition-all duration-300 hover:civic-shadow-lg hover:scale-[1.02];
+  }
+
+  /* Interactive Elements */
+  .civic-button-primary {
+    @apply bg-gradient-to-r from-blue-600 to-purple-600 text-white px-6 py-3 rounded-lg font-semibold transition-all duration-300 hover:from-blue-700 hover:to-purple-700 hover:scale-105 hover:shadow-lg active:scale-95;
+  }
+
+  .civic-button-secondary {
+    @apply bg-white text-gray-700 border border-gray-300 px-6 py-3 rounded-lg font-semibold transition-all duration-300 hover:bg-gray-50 hover:scale-105 hover:shadow-md active:scale-95;
+  }
+
+  /* Status Indicators */
+  .status-critical {
+    @apply bg-red-100 text-red-800 border border-red-200;
+  }
+  
+  .status-high {
+    @apply bg-orange-100 text-orange-800 border border-orange-200;
+  }
+  
+  .status-medium {
+    @apply bg-yellow-100 text-yellow-800 border border-yellow-200;
+  }
+  
+  .status-low {
+    @apply bg-green-100 text-green-800 border border-green-200;
+  }
+
+  /* Animations */
+  .animate-fade-in-up {
+    animation: fadeInUp 0.6s ease-out forwards;
+  }
+
+  .animate-scale-in {
+    animation: scaleIn 0.4s ease-out forwards;
+  }
+
+  .animate-slide-in-right {
+    animation: slideInRight 0.5s ease-out forwards;
+  }
+}
+
+@keyframes fadeInUp {
+  from {
+    opacity: 0;
+    transform: translateY(30px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes scaleIn {
+  from {
+    opacity: 0;
+    transform: scale(0.9);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+@keyframes slideInRight {
+  from {
+    opacity: 0;
+    transform: translateX(30px);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
+
+/* Pulse animation for priority items */
+@keyframes pulse-priority {
+  0%, 100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.7;
+  }
+}
+
+.animate-pulse-priority {
+  animation: pulse-priority 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+}
+
+/* Custom scrollbar */
+.civic-scrollbar::-webkit-scrollbar {
+  width: 8px;
+}
+
+.civic-scrollbar::-webkit-scrollbar-track {
+  background: #f1f5f9;
+  border-radius: 4px;
+}
+
+.civic-scrollbar::-webkit-scrollbar-thumb {
+  background: #cbd5e1;
+  border-radius: 4px;
+}
+
+.civic-scrollbar::-webkit-scrollbar-thumb:hover {
+  background: #94a3b8;
 }
