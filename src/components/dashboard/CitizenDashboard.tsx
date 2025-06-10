@@ -26,7 +26,7 @@ export function CitizenDashboard({ user, onLogout }: CitizenDashboardProps) {
         <div className="container mx-auto px-4 py-4 flex items-center justify-between">
           <div>
             <h1 className="text-2xl font-bold text-gray-900">CivicConnect</h1>
-            <p className="text-sm text-gray-600">Welcome, {user.fullName}</p>
+            <p className="text-sm text-gray-600">Welcome, {user.full_name}</p>
           </div>
           <div className="flex items-center gap-4">
             <Badge variant="outline">{user.role}</Badge>
