@@ -1,7 +1,7 @@
 
 import { useState, useEffect, createContext, useContext } from 'react'
 import { User, Session } from '@supabase/supabase-js'
-import { supabase } from '@/lib/supabase'
+import { supabase, getRoleFromEmail, validateEmailDomain } from '@/lib/supabase'
 import { useToast } from '@/hooks/use-toast'
 
 interface Profile {
@@ -84,6 +84,18 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const signUp = async (email: string, password: string, fullName: string, role: string) => {
     try {
       console.log('Signing up user with:', { email, fullName, role })
+      
+      // Validate email domain matches role
+      if (!validateEmailDomain(email, role)) {
+        let errorMessage = 'Invalid email domain for selected role. '
+        if (role === 'government_official') {
+          errorMessage += 'Government officials must use @govt.gmail.com email addresses.'
+        } else if (role === 'admin') {
+          errorMessage += 'Admins must use @admin.gmail.com email addresses.'
+        }
+        throw new Error(errorMessage)
+      }
+
       const { data, error } = await supabase.auth.signUp({
         email,
         password,

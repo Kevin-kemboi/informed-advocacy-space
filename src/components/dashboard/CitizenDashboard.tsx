@@ -4,11 +4,9 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { MessageSquare, AlertTriangle, Vote, LogOut, Plus, MapPin } from "lucide-react";
-import { IncidentReportModal } from "@/components/incidents/IncidentReportModal";
+import { MessageSquare, Vote, LogOut, Users, TrendingUp, Home } from "lucide-react";
+import { SocialFeed } from "@/components/social/SocialFeed";
 import { AIChat } from "@/components/ai/AIChat";
-import { PollsList } from "@/components/polls/PollsList";
-import { OpinionForm } from "@/components/opinions/OpinionForm";
 
 interface CitizenDashboardProps {
   user: any;
@@ -16,21 +14,30 @@ interface CitizenDashboardProps {
 }
 
 export function CitizenDashboard({ user, onLogout }: CitizenDashboardProps) {
-  const [showIncidentModal, setShowIncidentModal] = useState(false);
-  const [showOpinionForm, setShowOpinionForm] = useState(false);
-
   return (
-    <div className="min-h-screen bg-gray-50">
+    <div className="min-h-screen bg-gradient-to-br from-blue-50 via-purple-50 to-pink-50">
       {/* Header */}
-      <header className="bg-white shadow-sm border-b">
+      <header className="bg-white/80 backdrop-blur-lg shadow-sm border-b sticky top-0 z-50">
         <div className="container mx-auto px-4 py-4 flex items-center justify-between">
-          <div>
-            <h1 className="text-2xl font-bold text-gray-900">CivicConnect</h1>
-            <p className="text-sm text-gray-600">Welcome, {user.full_name}</p>
+          <div className="flex items-center gap-3">
+            <div className="w-10 h-10 bg-gradient-to-br from-blue-600 to-purple-600 rounded-xl flex items-center justify-center">
+              <Home className="h-6 w-6 text-white" />
+            </div>
+            <div>
+              <h1 className="text-2xl font-bold bg-gradient-to-r from-blue-600 to-purple-600 bg-clip-text text-transparent">
+                CivicConnect
+              </h1>
+              <p className="text-sm text-gray-600">Welcome back, {user.full_name}</p>
+            </div>
           </div>
           <div className="flex items-center gap-4">
-            <Badge variant="outline">{user.role}</Badge>
-            <Button variant="outline" onClick={onLogout}>
+            <Badge 
+              variant="outline" 
+              className="bg-green-50 text-green-700 border-green-200 px-3 py-1"
+            >
+              👤 {user.role.replace('_', ' ')}
+            </Badge>
+            <Button variant="outline" onClick={onLogout} className="hover:bg-red-50 hover:text-red-600">
               <LogOut className="h-4 w-4 mr-2" />
               Logout
             </Button>
@@ -39,148 +46,85 @@ export function CitizenDashboard({ user, onLogout }: CitizenDashboardProps) {
       </header>
 
       <div className="container mx-auto px-4 py-8">
-        {/* Quick Actions */}
+        {/* Quick Stats */}
         <div className="grid md:grid-cols-3 gap-6 mb-8">
-          <Card className="cursor-pointer hover:shadow-md transition-shadow" onClick={() => setShowIncidentModal(true)}>
+          <Card className="bg-gradient-to-r from-blue-500 to-blue-600 text-white">
             <CardHeader className="pb-3">
-              <AlertTriangle className="h-8 w-8 text-orange-500 mb-2" />
-              <CardTitle className="text-lg">Report Issue</CardTitle>
-              <CardDescription>Report local problems or emergencies</CardDescription>
+              <CardTitle className="text-lg flex items-center">
+                <Users className="h-5 w-5 mr-2" />
+                Community Members
+              </CardTitle>
             </CardHeader>
+            <CardContent>
+              <div className="text-3xl font-bold">1,247</div>
+              <p className="text-blue-100">Active citizens</p>
+            </CardContent>
           </Card>
 
-          <Card className="cursor-pointer hover:shadow-md transition-shadow" onClick={() => setShowOpinionForm(true)}>
+          <Card className="bg-gradient-to-r from-green-500 to-green-600 text-white">
             <CardHeader className="pb-3">
-              <MessageSquare className="h-8 w-8 text-blue-500 mb-2" />
-              <CardTitle className="text-lg">Share Opinion</CardTitle>
-              <CardDescription>Submit feedback on government policies</CardDescription>
+              <CardTitle className="text-lg flex items-center">
+                <Vote className="h-5 w-5 mr-2" />
+                Active Polls
+              </CardTitle>
             </CardHeader>
+            <CardContent>
+              <div className="text-3xl font-bold">23</div>
+              <p className="text-green-100">Awaiting your vote</p>
+            </CardContent>
           </Card>
 
-          <Card className="cursor-pointer hover:shadow-md transition-shadow">
+          <Card className="bg-gradient-to-r from-purple-500 to-purple-600 text-white">
             <CardHeader className="pb-3">
-              <Vote className="h-8 w-8 text-green-500 mb-2" />
-              <CardTitle className="text-lg">Active Polls</CardTitle>
-              <CardDescription>Participate in community decisions</CardDescription>
+              <CardTitle className="text-lg flex items-center">
+                <TrendingUp className="h-5 w-5 mr-2" />
+                Impact Score
+              </CardTitle>
             </CardHeader>
+            <CardContent>
+              <div className="text-3xl font-bold">95</div>
+              <p className="text-purple-100">Community rating</p>
+            </CardContent>
           </Card>
         </div>
 
         {/* Main Content */}
-        <Tabs defaultValue="overview" className="space-y-6">
-          <TabsList>
-            <TabsTrigger value="overview">Overview</TabsTrigger>
-            <TabsTrigger value="polls">Polls</TabsTrigger>
-            <TabsTrigger value="ai-chat">AI Assistant</TabsTrigger>
-            <TabsTrigger value="my-reports">My Reports</TabsTrigger>
+        <Tabs defaultValue="feed" className="space-y-6">
+          <TabsList className="grid w-full grid-cols-2 bg-white/80 backdrop-blur-lg">
+            <TabsTrigger value="feed" className="data-[state=active]:bg-blue-600 data-[state=active]:text-white">
+              <Home className="h-4 w-4 mr-2" />
+              Community Feed
+            </TabsTrigger>
+            <TabsTrigger value="ai-chat" className="data-[state=active]:bg-purple-600 data-[state=active]:text-white">
+              <MessageSquare className="h-4 w-4 mr-2" />
+              AI Assistant
+            </TabsTrigger>
           </TabsList>
 
-          <TabsContent value="overview">
-            <div className="grid md:grid-cols-2 gap-6">
-              {/* Recent Activity */}
-              <Card>
-                <CardHeader>
-                  <CardTitle>Recent Activity</CardTitle>
-                </CardHeader>
-                <CardContent>
-                  <div className="space-y-4">
-                    <div className="flex items-center justify-between p-3 bg-gray-50 rounded">
-                      <div>
-                        <p className="font-medium">Voted on "City Budget 2024"</p>
-                        <p className="text-sm text-gray-600">2 hours ago</p>
-                      </div>
-                      <Badge variant="outline">Poll</Badge>
-                    </div>
-                    <div className="flex items-center justify-between p-3 bg-gray-50 rounded">
-                      <div>
-                        <p className="font-medium">Reported pothole on Main St</p>
-                        <p className="text-sm text-gray-600">1 day ago</p>
-                      </div>
-                      <Badge variant="outline">Incident</Badge>
-                    </div>
-                  </div>
-                </CardContent>
-              </Card>
+          <TabsContent value="feed">
+            <SocialFeed />
+          </TabsContent>
 
-              {/* Community Stats */}
-              <Card>
+          <TabsContent value="ai-chat">
+            <div className="max-w-4xl mx-auto">
+              <Card className="bg-white/80 backdrop-blur-lg">
                 <CardHeader>
-                  <CardTitle>Community Impact</CardTitle>
+                  <CardTitle className="flex items-center gap-2">
+                    <MessageSquare className="h-5 w-5 text-blue-600" />
+                    AI Civic Assistant
+                  </CardTitle>
+                  <CardDescription>
+                    Ask questions about government policies, get help understanding civic processes, or learn about your community.
+                  </CardDescription>
                 </CardHeader>
                 <CardContent>
-                  <div className="space-y-4">
-                    <div className="flex justify-between">
-                      <span>Issues Resolved This Month</span>
-                      <Badge variant="secondary">23</Badge>
-                    </div>
-                    <div className="flex justify-between">
-                      <span>Active Polls</span>
-                      <Badge variant="secondary">7</Badge>
-                    </div>
-                    <div className="flex justify-between">
-                      <span>Community Participation</span>
-                      <Badge variant="secondary">78%</Badge>
-                    </div>
-                  </div>
+                  <AIChat />
                 </CardContent>
               </Card>
             </div>
           </TabsContent>
-
-          <TabsContent value="polls">
-            <PollsList userRole="citizen" />
-          </TabsContent>
-
-          <TabsContent value="ai-chat">
-            <AIChat />
-          </TabsContent>
-
-          <TabsContent value="my-reports">
-            <Card>
-              <CardHeader>
-                <CardTitle>My Reports</CardTitle>
-                <CardDescription>Track your submitted incidents and feedback</CardDescription>
-              </CardHeader>
-              <CardContent>
-                <div className="space-y-4">
-                  <div className="border rounded-lg p-4">
-                    <div className="flex items-center justify-between mb-2">
-                      <h3 className="font-medium">Pothole on Main Street</h3>
-                      <Badge variant="outline">In Progress</Badge>
-                    </div>
-                    <p className="text-sm text-gray-600 mb-2">Large pothole causing traffic issues</p>
-                    <div className="flex items-center text-xs text-gray-500">
-                      <MapPin className="h-3 w-3 mr-1" />
-                      Main St & 2nd Ave
-                    </div>
-                  </div>
-                  <div className="border rounded-lg p-4">
-                    <div className="flex items-center justify-between mb-2">
-                      <h3 className="font-medium">Broken Streetlight</h3>
-                      <Badge variant="secondary">Resolved</Badge>
-                    </div>
-                    <p className="text-sm text-gray-600 mb-2">Streetlight out for several days</p>
-                    <div className="flex items-center text-xs text-gray-500">
-                      <MapPin className="h-3 w-3 mr-1" />
-                      Oak Street
-                    </div>
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
-          </TabsContent>
         </Tabs>
       </div>
-
-      <IncidentReportModal 
-        isOpen={showIncidentModal}
-        onClose={() => setShowIncidentModal(false)}
-      />
-
-      <OpinionForm 
-        isOpen={showOpinionForm}
-        onClose={() => setShowOpinionForm(false)}
-      />
     </div>
   );
 }

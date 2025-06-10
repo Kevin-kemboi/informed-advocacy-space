@@ -15,50 +15,72 @@ export interface User {
   created_at: string
 }
 
-export interface Incident {
+export interface Post {
   id: string
   user_id: string
-  title: string
-  description: string
-  category: string
-  priority: 'low' | 'medium' | 'high' | 'critical'
-  status: 'open' | 'in_progress' | 'resolved' | 'closed'
-  location: {
-    lat: number
-    lng: number
-    address: string
-  }
+  content: string
   media_urls: string[]
+  status: 'active' | 'flagged' | 'resolved' | 'archived'
+  likes_count: number
+  flags_count: number
   created_at: string
   updated_at: string
-  assigned_to?: string
+  profiles?: {
+    full_name: string
+    email: string
+    role: string
+  }
 }
 
 export interface Poll {
   id: string
-  title: string
-  description: string
-  options: { id: string; text: string; votes: number }[]
-  status: 'active' | 'closed'
-  created_by: string
-  created_at: string
-  ends_at: string
-}
-
-export interface Opinion {
-  id: string
   user_id: string
-  title: string
-  content: string
-  category: string
-  status: 'pending' | 'approved' | 'rejected'
+  question: string
+  options: { id: string; text: string; votes: number }[]
+  total_votes: number
+  status: 'active' | 'closed' | 'archived'
+  expires_at: string | null
   created_at: string
+  updated_at: string
+  profiles?: {
+    full_name: string
+    email: string
+    role: string
+  }
 }
 
-export interface PollVote {
+export interface Vote {
   id: string
   poll_id: string
   user_id: string
   option_id: string
   created_at: string
+}
+
+export interface Like {
+  id: string
+  post_id: string
+  user_id: string
+  created_at: string
+}
+
+export interface Flag {
+  id: string
+  post_id?: string
+  poll_id?: string
+  user_id: string
+  reason?: string
+  created_at: string
+}
+
+// Utility functions
+export const getRoleFromEmail = (email: string): 'citizen' | 'government_official' | 'admin' => {
+  if (email.endsWith('@admin.gmail.com')) return 'admin'
+  if (email.endsWith('@govt.gmail.com')) return 'government_official'
+  return 'citizen'
+}
+
+export const validateEmailDomain = (email: string, role: string): boolean => {
+  const detectedRole = getRoleFromEmail(email)
+  return detectedRole === role
 }
