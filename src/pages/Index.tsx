@@ -10,7 +10,7 @@ import { useAuth } from "@/hooks/useAuth";
 
 export default function Index() {
   const [showAuthModal, setShowAuthModal] = useState(false);
-  const { user, profile, loading } = useAuth();
+  const { user, profile, loading, signOut } = useAuth();
 
   if (loading) {
     return (
@@ -223,11 +223,11 @@ export default function Index() {
   const renderDashboard = () => {
     switch (profile.role) {
       case 'government_official':
-        return <OfficialDashboard />;
+        return <OfficialDashboard user={profile} onLogout={signOut} />;
       case 'admin':
-        return <AdminDashboard />;
+        return <AdminDashboard user={profile} onLogout={signOut} />;
       default:
-        return <CitizenDashboard />;
+        return <CitizenDashboard user={profile} onLogout={signOut} />;
     }
   };
 
