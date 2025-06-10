@@ -11,6 +11,12 @@ export function useIncidents() {
   const { toast } = useToast()
 
   useEffect(() => {
+    if (!supabase) {
+      console.warn('Supabase not available for incidents')
+      setLoading(false)
+      return
+    }
+
     fetchIncidents()
     
     // Subscribe to real-time updates
@@ -31,6 +37,8 @@ export function useIncidents() {
   }, [])
 
   const fetchIncidents = async () => {
+    if (!supabase) return
+
     try {
       const { data, error } = await supabase
         .from('incidents')
@@ -53,6 +61,15 @@ export function useIncidents() {
   }
 
   const createIncident = async (incidentData: Omit<Incident, 'id' | 'user_id' | 'created_at' | 'updated_at'>) => {
+    if (!supabase) {
+      toast({
+        title: "Error",
+        description: "Database not available. Please check Supabase configuration.",
+        variant: "destructive"
+      })
+      throw new Error('Supabase not available')
+    }
+
     try {
       if (!user) throw new Error('User not authenticated')
 
@@ -84,6 +101,15 @@ export function useIncidents() {
   }
 
   const updateIncident = async (id: string, updates: Partial<Incident>) => {
+    if (!supabase) {
+      toast({
+        title: "Error",
+        description: "Database not available. Please check Supabase configuration.",
+        variant: "destructive"
+      })
+      throw new Error('Supabase not available')
+    }
+
     try {
       const { data, error } = await supabase
         .from('incidents')

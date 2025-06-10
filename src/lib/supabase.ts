@@ -1,10 +1,21 @@
 
 import { createClient } from '@supabase/supabase-js'
 
-const supabaseUrl = import.meta.env.VITE_SUPABASE_URL!
-const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY!
+// Get environment variables with fallbacks
+const supabaseUrl = import.meta.env.VITE_SUPABASE_URL || ''
+const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY || ''
 
-export const supabase = createClient(supabaseUrl, supabaseAnonKey)
+// Validate that we have the required environment variables
+if (!supabaseUrl || !supabaseAnonKey) {
+  console.error('Missing Supabase environment variables. Please check your Supabase integration.')
+  console.error('VITE_SUPABASE_URL:', supabaseUrl ? 'Set' : 'Missing')
+  console.error('VITE_SUPABASE_ANON_KEY:', supabaseAnonKey ? 'Set' : 'Missing')
+}
+
+// Create a placeholder client if variables are missing (to prevent crashes)
+export const supabase = (supabaseUrl && supabaseAnonKey) 
+  ? createClient(supabaseUrl, supabaseAnonKey)
+  : null
 
 // Database types
 export interface User {

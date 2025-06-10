@@ -24,6 +24,13 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const { toast } = useToast()
 
   useEffect(() => {
+    // Check if Supabase is available
+    if (!supabase) {
+      console.warn('Supabase client not available. Check environment variables.')
+      setLoading(false)
+      return
+    }
+
     // Get initial session
     supabase.auth.getSession().then(({ data: { session } }) => {
       setSession(session)
@@ -52,6 +59,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }, [])
 
   const fetchProfile = async (userId: string) => {
+    if (!supabase) return
+    
     try {
       const { data, error } = await supabase
         .from('profiles')
@@ -67,6 +76,15 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }
 
   const signUp = async (email: string, password: string, fullName: string, role: string) => {
+    if (!supabase) {
+      toast({
+        title: "Error",
+        description: "Supabase is not configured. Please check your environment variables.",
+        variant: "destructive"
+      })
+      throw new Error('Supabase not available')
+    }
+
     try {
       const { data, error } = await supabase.auth.signUp({
         email,
@@ -110,6 +128,15 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }
 
   const signIn = async (email: string, password: string) => {
+    if (!supabase) {
+      toast({
+        title: "Error",
+        description: "Supabase is not configured. Please check your environment variables.",
+        variant: "destructive"
+      })
+      throw new Error('Supabase not available')
+    }
+
     try {
       const { error } = await supabase.auth.signInWithPassword({
         email,
@@ -133,6 +160,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }
 
   const signOut = async () => {
+    if (!supabase) return
+
     try {
       const { error } = await supabase.auth.signOut()
       if (error) throw error
