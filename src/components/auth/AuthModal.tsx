@@ -18,7 +18,7 @@ export function AuthModal({ isOpen, onClose }: AuthModalProps) {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [fullName, setFullName] = useState("");
-  const [role, setRole] = useState("citizen");
+  const [role, setRole] = useState<'citizen' | 'government_official' | 'admin'>("citizen");
   const [loading, setLoading] = useState(false);
   const { signIn, signUp } = useAuth();
 
@@ -151,7 +151,7 @@ export function AuthModal({ isOpen, onClose }: AuthModalProps) {
                 </div>
                 <div>
                   <Label>Role</Label>
-                  <RadioGroup value={role} onValueChange={setRole} disabled={loading}>
+                  <RadioGroup value={role} onValueChange={(value) => setRole(value as 'citizen' | 'government_official' | 'admin')} disabled={loading}>
                     <div className="flex items-center space-x-2">
                       <RadioGroupItem value="citizen" id="citizen" />
                       <Label htmlFor="citizen">Citizen</Label>

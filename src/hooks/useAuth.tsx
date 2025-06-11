@@ -1,5 +1,5 @@
 
-import { useEffect, useState } from 'react'
+import { useEffect, useState, createContext, useContext, ReactNode } from 'react'
 import { supabase, getRoleFromEmail, validateEmailDomain } from '@/lib/supabase'
 import { User } from '@supabase/supabase-js'
 import { useToast } from '@/hooks/use-toast'
@@ -12,7 +12,18 @@ interface Profile {
   created_at: string
 }
 
-export function useAuth() {
+interface AuthContextType {
+  user: User | null
+  profile: Profile | null
+  loading: boolean
+  signIn: (email: string, password: string) => Promise<any>
+  signUp: (email: string, password: string, fullName: string, role: 'citizen' | 'government_official' | 'admin') => Promise<any>
+  signOut: () => Promise<void>
+}
+
+const AuthContext = createContext<AuthContextType | undefined>(undefined)
+
+export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<User | null>(null)
   const [profile, setProfile] = useState<Profile | null>(null)
   const [loading, setLoading] = useState(true)
@@ -146,7 +157,7 @@ export function useAuth() {
     }
   }
 
-  return {
+  const value = {
     user,
     profile,
     loading,
@@ -154,4 +165,18 @@ export function useAuth() {
     signUp,
     signOut,
   }
+
+  return (
+    <AuthContext.Provider value={value}>
+      {children}
+    </AuthContext.Provider>
+  )
+}
+
+export function useAuth() {
+  const context = useContext(AuthContext)
+  if (context === undefined) {
+    throw new Error('useAuth must be used within an AuthProvider')
+  }
+  return context
 }
