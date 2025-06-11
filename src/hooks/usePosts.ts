@@ -11,35 +11,40 @@ export function usePosts() {
   const { toast } = useToast()
 
   useEffect(() => {
+    console.log('usePosts: Initializing with user:', user?.id)
     fetchPosts()
     
     // Subscribe to real-time updates with a unique channel name
     const channel = supabase
-      .channel('posts-realtime-updates')
+      .channel('posts-realtime-updates-v2')
       .on('postgres_changes', {
         event: '*',
         schema: 'public',
         table: 'posts'
-      }, () => {
-        console.log('Posts table changed, refetching...')
+      }, (payload) => {
+        console.log('Posts table changed:', payload)
         fetchPosts()
       })
-      .subscribe()
+      .subscribe((status) => {
+        console.log('Posts subscription status:', status)
+      })
 
     return () => {
       console.log('Cleaning up posts subscription')
       supabase.removeChannel(channel)
     }
-  }, [])
+  }, [user])
 
   const fetchPosts = async () => {
     try {
       console.log('Fetching posts...')
+      setLoading(true)
+      
       const { data, error } = await supabase
         .from('posts')
         .select(`
           *,
-          profiles!posts_user_id_fkey (
+          profiles (
             full_name,
             email,
             role
@@ -57,6 +62,11 @@ export function usePosts() {
       setPosts(data || [])
     } catch (error) {
       console.error('Error fetching posts:', error)
+      toast({
+        title: "Error",
+        description: "Failed to load posts. Please try again.",
+        variant: "destructive"
+      })
     } finally {
       setLoading(false)
     }
@@ -88,6 +98,8 @@ export function usePosts() {
         description: "Your post has been shared successfully."
       })
 
+      // Refresh posts after creating
+      fetchPosts()
       return data
     } catch (error: any) {
       console.error('Error in createPost:', error)
@@ -125,6 +137,9 @@ export function usePosts() {
         title: "Post Liked",
         description: "You liked this post."
       })
+
+      // Refresh posts to show updated like count
+      fetchPosts()
     } catch (error: any) {
       console.error('Error in likePost:', error)
       toast({

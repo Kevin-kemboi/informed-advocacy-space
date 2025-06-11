@@ -7,7 +7,7 @@ import { PostComposer } from "./PostComposer";
 import { PollComposer } from "./PollComposer";
 import { PostCard } from "./PostCard";
 import { PollCard } from "./PollCard";
-import { Plus, Filter } from "lucide-react";
+import { Plus, Filter, Loader2 } from "lucide-react";
 import { usePosts } from "@/hooks/usePosts";
 import { useSocialPolls } from "@/hooks/useSocialPolls";
 import { useAuth } from "@/hooks/useAuth";
@@ -22,6 +22,27 @@ export function SocialFeed() {
   const { profile } = useAuth();
 
   const canCreate = profile?.role === 'citizen';
+  const isLoading = postsLoading || pollsLoading;
+
+  console.log('SocialFeed: Rendering with data:', { 
+    posts: posts.length, 
+    polls: polls.length, 
+    isLoading, 
+    canCreate 
+  });
+
+  if (isLoading) {
+    return (
+      <div className="max-w-2xl mx-auto space-y-6">
+        <Card className="text-center py-12">
+          <CardContent className="flex flex-col items-center gap-4">
+            <Loader2 className="h-8 w-8 animate-spin text-blue-600" />
+            <p className="text-gray-600">Loading your community feed...</p>
+          </CardContent>
+        </Card>
+      </div>
+    );
+  }
 
   return (
     <div className="max-w-2xl mx-auto space-y-6">
@@ -85,7 +106,7 @@ export function SocialFeed() {
       </Tabs>
 
       {/* Empty state */}
-      {!postsLoading && !pollsLoading && posts.length === 0 && polls.length === 0 && (
+      {!isLoading && posts.length === 0 && polls.length === 0 && (
         <Card className="text-center py-12 bg-gray-50">
           <CardContent>
             <div className="text-gray-500 mb-4">

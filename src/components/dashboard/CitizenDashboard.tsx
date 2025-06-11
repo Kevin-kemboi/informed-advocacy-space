@@ -14,6 +14,8 @@ interface CitizenDashboardProps {
 }
 
 export function CitizenDashboard({ user, onLogout }: CitizenDashboardProps) {
+  console.log('CitizenDashboard: Rendering for user:', user)
+
   return (
     <div className="min-h-screen bg-gradient-to-br from-blue-50 via-purple-50 to-pink-50">
       {/* Header */}
@@ -27,7 +29,7 @@ export function CitizenDashboard({ user, onLogout }: CitizenDashboardProps) {
               <h1 className="text-2xl font-bold bg-gradient-to-r from-blue-600 to-purple-600 bg-clip-text text-transparent">
                 CivicConnect
               </h1>
-              <p className="text-sm text-gray-600">Welcome back, {user.full_name}</p>
+              <p className="text-sm text-gray-600">Welcome back, {user?.full_name || 'User'}</p>
             </div>
           </div>
           <div className="flex items-center gap-4">
@@ -35,7 +37,7 @@ export function CitizenDashboard({ user, onLogout }: CitizenDashboardProps) {
               variant="outline" 
               className="bg-green-50 text-green-700 border-green-200 px-3 py-1"
             >
-              👤 {user.role.replace('_', ' ')}
+              👤 {user?.role?.replace('_', ' ') || 'citizen'}
             </Badge>
             <Button variant="outline" onClick={onLogout} className="hover:bg-red-50 hover:text-red-600">
               <LogOut className="h-4 w-4 mr-2" />

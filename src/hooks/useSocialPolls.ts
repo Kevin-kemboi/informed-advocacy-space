@@ -12,6 +12,7 @@ export function useSocialPolls() {
   const { toast } = useToast()
 
   useEffect(() => {
+    console.log('useSocialPolls: Initializing with user:', user?.id)
     fetchPolls()
     if (user) {
       fetchUserVotes()
@@ -19,29 +20,33 @@ export function useSocialPolls() {
 
     // Subscribe to real-time updates with unique channel names
     const pollsChannel = supabase
-      .channel('polls-realtime-updates')
+      .channel('polls-realtime-updates-v2')
       .on('postgres_changes', {
         event: '*',
         schema: 'public',
         table: 'polls'
-      }, () => {
-        console.log('Polls table changed, refetching...')
+      }, (payload) => {
+        console.log('Polls table changed:', payload)
         fetchPolls()
       })
-      .subscribe()
+      .subscribe((status) => {
+        console.log('Polls subscription status:', status)
+      })
 
     const votesChannel = supabase
-      .channel('votes-realtime-updates')
+      .channel('votes-realtime-updates-v2')
       .on('postgres_changes', {
         event: '*',
         schema: 'public',
         table: 'votes'
-      }, () => {
-        console.log('Votes table changed, refetching...')
+      }, (payload) => {
+        console.log('Votes table changed:', payload)
         fetchPolls()
         if (user) fetchUserVotes()
       })
-      .subscribe()
+      .subscribe((status) => {
+        console.log('Votes subscription status:', status)
+      })
 
     return () => {
       console.log('Cleaning up polls and votes subscriptions')
@@ -53,11 +58,13 @@ export function useSocialPolls() {
   const fetchPolls = async () => {
     try {
       console.log('Fetching polls...')
+      setLoading(true)
+      
       const { data, error } = await supabase
         .from('polls')
         .select(`
           *,
-          profiles!polls_user_id_fkey (
+          profiles (
             full_name,
             email,
             role
@@ -75,6 +82,11 @@ export function useSocialPolls() {
       setPolls(data || [])
     } catch (error) {
       console.error('Error fetching polls:', error)
+      toast({
+        title: "Error",
+        description: "Failed to load polls. Please try again.",
+        variant: "destructive"
+      })
     } finally {
       setLoading(false)
     }
@@ -135,6 +147,8 @@ export function useSocialPolls() {
         description: "Your poll has been created successfully."
       })
 
+      // Refresh polls after creating
+      fetchPolls()
       return data
     } catch (error: any) {
       console.error('Error in createPoll:', error)
@@ -176,6 +190,10 @@ export function useSocialPolls() {
         title: "Vote Submitted",
         description: "Your vote has been recorded successfully."
       })
+
+      // Refresh data after voting
+      fetchPolls()
+      fetchUserVotes()
     } catch (error: any) {
       console.error('Error in submitVote:', error)
       toast({

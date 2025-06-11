@@ -30,8 +30,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const { toast } = useToast()
 
   useEffect(() => {
+    console.log('Auth Provider: Starting initialization')
+    
     // Get initial session
     supabase.auth.getSession().then(({ data: { session } }) => {
+      console.log('Auth Provider: Initial session:', session?.user?.id)
       setUser(session?.user ?? null)
       if (session?.user) {
         fetchProfile(session.user.id)
@@ -55,18 +58,40 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       }
     )
 
-    return () => subscription.unsubscribe()
+    return () => {
+      console.log('Auth Provider: Cleanup')
+      subscription.unsubscribe()
+    }
   }, [])
 
   const fetchProfile = async (userId: string) => {
     try {
+      console.log('Fetching profile for user:', userId)
+      
+      // Add a small delay to ensure the trigger has time to create the profile
+      await new Promise(resolve => setTimeout(resolve, 1000))
+      
       const { data, error } = await supabase
         .from('profiles')
         .select('*')
         .eq('id', userId)
         .single()
 
-      if (error) throw error
+      if (error) {
+        console.error('Error fetching profile:', error)
+        
+        // If profile doesn't exist, the trigger might have failed, so we show an error
+        if (error.code === 'PGRST116') {
+          toast({
+            title: "Profile Error",
+            description: "There was an issue creating your profile. Please contact support.",
+            variant: "destructive",
+          })
+        }
+        throw error
+      }
+      
+      console.log('Profile fetched successfully:', data)
       setProfile(data)
     } catch (error) {
       console.error('Error fetching profile:', error)
@@ -77,6 +102,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const signIn = async (email: string, password: string) => {
     try {
+      console.log('Attempting sign in for:', email)
       const { data, error } = await supabase.auth.signInWithPassword({
         email,
         password,
@@ -84,6 +110,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
       if (error) throw error
 
+      console.log('Sign in successful')
       toast({
         title: "Welcome back!",
         description: "You have successfully signed in.",
@@ -91,6 +118,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
       return data
     } catch (error: any) {
+      console.error('Sign in error:', error)
       toast({
         title: "Error",
         description: error.message,
@@ -102,6 +130,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const signUp = async (email: string, password: string, fullName: string, role: 'citizen' | 'government_official' | 'admin') => {
     try {
+      console.log('Attempting sign up for:', email, 'with role:', role)
+      
       // Validate email domain matches role
       if (!validateEmailDomain(email, role)) {
         const requiredDomain = role === 'admin' ? '@admin.gmail.com' : 
@@ -117,19 +147,22 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           data: {
             full_name: fullName,
             role: role
-          }
+          },
+          emailRedirectTo: `${window.location.origin}/`
         }
       })
 
       if (error) throw error
 
+      console.log('Sign up successful:', data.user?.id)
       toast({
         title: "Account created!",
-        description: "Welcome to CivicConnect. Please check your email to verify your account.",
+        description: "Welcome to CivicConnect. Your account has been created successfully.",
       })
 
       return data
     } catch (error: any) {
+      console.error('Sign up error:', error)
       toast({
         title: "Error",
         description: error.message,
@@ -165,6 +198,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     signUp,
     signOut,
   }
+
+  console.log('Auth Provider: Current state:', { user: user?.id, profile: profile?.id, loading })
 
   return (
     <AuthContext.Provider value={value}>
