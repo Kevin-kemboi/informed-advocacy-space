@@ -15,28 +15,31 @@ export function usePosts() {
     
     // Subscribe to real-time updates with a unique channel name
     const channel = supabase
-      .channel('posts-changes')
+      .channel('posts-realtime-updates')
       .on('postgres_changes', {
         event: '*',
         schema: 'public',
         table: 'posts'
       }, () => {
+        console.log('Posts table changed, refetching...')
         fetchPosts()
       })
       .subscribe()
 
     return () => {
+      console.log('Cleaning up posts subscription')
       supabase.removeChannel(channel)
     }
   }, [])
 
   const fetchPosts = async () => {
     try {
+      console.log('Fetching posts...')
       const { data, error } = await supabase
         .from('posts')
         .select(`
           *,
-          profiles:profiles!posts_user_id_fkey (
+          profiles!posts_user_id_fkey (
             full_name,
             email,
             role
@@ -45,7 +48,12 @@ export function usePosts() {
         .eq('status', 'active')
         .order('created_at', { ascending: false })
 
-      if (error) throw error
+      if (error) {
+        console.error('Error fetching posts:', error)
+        throw error
+      }
+      
+      console.log('Posts fetched successfully:', data?.length || 0)
       setPosts(data || [])
     } catch (error) {
       console.error('Error fetching posts:', error)
@@ -58,6 +66,7 @@ export function usePosts() {
     try {
       if (!user) throw new Error('User not authenticated')
 
+      console.log('Creating post with content:', content)
       const { data, error } = await supabase
         .from('posts')
         .insert({
@@ -68,8 +77,12 @@ export function usePosts() {
         .select()
         .single()
 
-      if (error) throw error
+      if (error) {
+        console.error('Error creating post:', error)
+        throw error
+      }
 
+      console.log('Post created successfully:', data)
       toast({
         title: "Post Created",
         description: "Your post has been shared successfully."
@@ -77,6 +90,7 @@ export function usePosts() {
 
       return data
     } catch (error: any) {
+      console.error('Error in createPost:', error)
       toast({
         title: "Error",
         description: error.message,
@@ -90,6 +104,7 @@ export function usePosts() {
     try {
       if (!user) throw new Error('User not authenticated')
 
+      console.log('Liking post:', postId)
       const { error } = await supabase
         .from('likes')
         .insert({
@@ -97,16 +112,21 @@ export function usePosts() {
           user_id: user.id
         })
 
-      if (error) throw error
+      if (error) {
+        console.error('Error liking post:', error)
+        throw error
+      }
 
       // Update likes count
       await supabase.rpc('increment_likes', { post_id: postId })
       
+      console.log('Post liked successfully')
       toast({
         title: "Post Liked",
         description: "You liked this post."
       })
     } catch (error: any) {
+      console.error('Error in likePost:', error)
       toast({
         title: "Error",
         description: error.message,
@@ -119,6 +139,7 @@ export function usePosts() {
     try {
       if (!user) throw new Error('User not authenticated')
 
+      console.log('Flagging post:', postId)
       const { error } = await supabase
         .from('flags')
         .insert({
@@ -127,13 +148,18 @@ export function usePosts() {
           reason
         })
 
-      if (error) throw error
+      if (error) {
+        console.error('Error flagging post:', error)
+        throw error
+      }
 
+      console.log('Post flagged successfully')
       toast({
         title: "Post Flagged",
         description: "This post has been reported for review."
       })
     } catch (error: any) {
+      console.error('Error in flagPost:', error)
       toast({
         title: "Error",
         description: error.message,

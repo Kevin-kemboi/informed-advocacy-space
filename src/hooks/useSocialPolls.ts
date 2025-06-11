@@ -19,29 +19,32 @@ export function useSocialPolls() {
 
     // Subscribe to real-time updates with unique channel names
     const pollsChannel = supabase
-      .channel('polls-changes')
+      .channel('polls-realtime-updates')
       .on('postgres_changes', {
         event: '*',
         schema: 'public',
         table: 'polls'
       }, () => {
+        console.log('Polls table changed, refetching...')
         fetchPolls()
       })
       .subscribe()
 
     const votesChannel = supabase
-      .channel('votes-changes')
+      .channel('votes-realtime-updates')
       .on('postgres_changes', {
         event: '*',
         schema: 'public',
         table: 'votes'
       }, () => {
+        console.log('Votes table changed, refetching...')
         fetchPolls()
         if (user) fetchUserVotes()
       })
       .subscribe()
 
     return () => {
+      console.log('Cleaning up polls and votes subscriptions')
       supabase.removeChannel(pollsChannel)
       supabase.removeChannel(votesChannel)
     }
@@ -49,11 +52,12 @@ export function useSocialPolls() {
 
   const fetchPolls = async () => {
     try {
+      console.log('Fetching polls...')
       const { data, error } = await supabase
         .from('polls')
         .select(`
           *,
-          profiles:profiles!polls_user_id_fkey (
+          profiles!polls_user_id_fkey (
             full_name,
             email,
             role
@@ -62,7 +66,12 @@ export function useSocialPolls() {
         .eq('status', 'active')
         .order('created_at', { ascending: false })
 
-      if (error) throw error
+      if (error) {
+        console.error('Error fetching polls:', error)
+        throw error
+      }
+      
+      console.log('Polls fetched successfully:', data?.length || 0)
       setPolls(data || [])
     } catch (error) {
       console.error('Error fetching polls:', error)
@@ -75,12 +84,18 @@ export function useSocialPolls() {
     try {
       if (!user) return
 
+      console.log('Fetching user votes...')
       const { data, error } = await supabase
         .from('votes')
         .select('*')
         .eq('user_id', user.id)
 
-      if (error) throw error
+      if (error) {
+        console.error('Error fetching user votes:', error)
+        throw error
+      }
+      
+      console.log('User votes fetched successfully:', data?.length || 0)
       setUserVotes(data || [])
     } catch (error) {
       console.error('Error fetching user votes:', error)
@@ -97,6 +112,7 @@ export function useSocialPolls() {
         votes: 0
       }))
 
+      console.log('Creating poll:', question)
       const { data, error } = await supabase
         .from('polls')
         .insert({
@@ -108,8 +124,12 @@ export function useSocialPolls() {
         .select()
         .single()
 
-      if (error) throw error
+      if (error) {
+        console.error('Error creating poll:', error)
+        throw error
+      }
 
+      console.log('Poll created successfully:', data)
       toast({
         title: "Poll Created",
         description: "Your poll has been created successfully."
@@ -117,6 +137,7 @@ export function useSocialPolls() {
 
       return data
     } catch (error: any) {
+      console.error('Error in createPoll:', error)
       toast({
         title: "Error",
         description: error.message,
@@ -136,6 +157,7 @@ export function useSocialPolls() {
         throw new Error('You have already voted on this poll')
       }
 
+      console.log('Submitting vote:', pollId, optionId)
       const { error } = await supabase
         .from('votes')
         .insert({
@@ -144,13 +166,18 @@ export function useSocialPolls() {
           option_id: optionId
         })
 
-      if (error) throw error
+      if (error) {
+        console.error('Error submitting vote:', error)
+        throw error
+      }
 
+      console.log('Vote submitted successfully')
       toast({
         title: "Vote Submitted",
         description: "Your vote has been recorded successfully."
       })
     } catch (error: any) {
+      console.error('Error in submitVote:', error)
       toast({
         title: "Error",
         description: error.message,
