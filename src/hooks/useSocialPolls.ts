@@ -17,9 +17,9 @@ export function useSocialPolls() {
       fetchUserVotes()
     }
 
-    // Subscribe to real-time updates
-    const subscription = supabase
-      .channel('polls')
+    // Subscribe to real-time updates with unique channel names
+    const pollsChannel = supabase
+      .channel('polls-changes')
       .on('postgres_changes', {
         event: '*',
         schema: 'public',
@@ -27,6 +27,10 @@ export function useSocialPolls() {
       }, () => {
         fetchPolls()
       })
+      .subscribe()
+
+    const votesChannel = supabase
+      .channel('votes-changes')
       .on('postgres_changes', {
         event: '*',
         schema: 'public',
@@ -38,7 +42,8 @@ export function useSocialPolls() {
       .subscribe()
 
     return () => {
-      subscription.unsubscribe()
+      supabase.removeChannel(pollsChannel)
+      supabase.removeChannel(votesChannel)
     }
   }, [user])
 
@@ -48,7 +53,7 @@ export function useSocialPolls() {
         .from('polls')
         .select(`
           *,
-          profiles:user_id (
+          profiles:profiles!polls_user_id_fkey (
             full_name,
             email,
             role

@@ -13,9 +13,9 @@ export function usePosts() {
   useEffect(() => {
     fetchPosts()
     
-    // Subscribe to real-time updates
-    const subscription = supabase
-      .channel('posts')
+    // Subscribe to real-time updates with a unique channel name
+    const channel = supabase
+      .channel('posts-changes')
       .on('postgres_changes', {
         event: '*',
         schema: 'public',
@@ -26,7 +26,7 @@ export function usePosts() {
       .subscribe()
 
     return () => {
-      subscription.unsubscribe()
+      supabase.removeChannel(channel)
     }
   }, [])
 
@@ -36,7 +36,7 @@ export function usePosts() {
         .from('posts')
         .select(`
           *,
-          profiles:user_id (
+          profiles:profiles!posts_user_id_fkey (
             full_name,
             email,
             role
