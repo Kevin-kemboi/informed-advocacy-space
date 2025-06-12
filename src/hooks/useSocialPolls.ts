@@ -1,5 +1,5 @@
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { supabase, Poll, Vote } from '@/lib/supabase'
 import { useAuth } from '@/hooks/useAuth'
 import { useToast } from '@/hooks/use-toast'
@@ -10,6 +10,8 @@ export function useSocialPolls() {
   const [loading, setLoading] = useState(true)
   const { user } = useAuth()
   const { toast } = useToast()
+  const pollsChannelRef = useRef<any>(null)
+  const votesChannelRef = useRef<any>(null)
 
   useEffect(() => {
     console.log('useSocialPolls: Initializing with user:', user?.id)
@@ -18,9 +20,19 @@ export function useSocialPolls() {
       fetchUserVotes()
     }
 
+    // Clean up existing subscriptions
+    if (pollsChannelRef.current) {
+      supabase.removeChannel(pollsChannelRef.current)
+      pollsChannelRef.current = null
+    }
+    if (votesChannelRef.current) {
+      supabase.removeChannel(votesChannelRef.current)
+      votesChannelRef.current = null
+    }
+
     // Subscribe to real-time updates with unique channel names
-    const pollsChannel = supabase
-      .channel('polls-realtime-updates-v2')
+    pollsChannelRef.current = supabase
+      .channel(`polls-realtime-${Date.now()}`)
       .on('postgres_changes', {
         event: '*',
         schema: 'public',
@@ -33,8 +45,8 @@ export function useSocialPolls() {
         console.log('Polls subscription status:', status)
       })
 
-    const votesChannel = supabase
-      .channel('votes-realtime-updates-v2')
+    votesChannelRef.current = supabase
+      .channel(`votes-realtime-${Date.now()}`)
       .on('postgres_changes', {
         event: '*',
         schema: 'public',
@@ -50,8 +62,14 @@ export function useSocialPolls() {
 
     return () => {
       console.log('Cleaning up polls and votes subscriptions')
-      supabase.removeChannel(pollsChannel)
-      supabase.removeChannel(votesChannel)
+      if (pollsChannelRef.current) {
+        supabase.removeChannel(pollsChannelRef.current)
+        pollsChannelRef.current = null
+      }
+      if (votesChannelRef.current) {
+        supabase.removeChannel(votesChannelRef.current)
+        votesChannelRef.current = null
+      }
     }
   }, [user])
 
@@ -60,26 +78,44 @@ export function useSocialPolls() {
       console.log('Fetching polls...')
       setLoading(true)
       
-      const { data, error } = await supabase
+      // First try without profiles join to see if basic query works
+      const { data: pollsData, error: pollsError } = await supabase
         .from('polls')
-        .select(`
-          *,
-          profiles (
-            full_name,
-            email,
-            role
-          )
-        `)
+        .select('*')
         .eq('status', 'active')
         .order('created_at', { ascending: false })
 
-      if (error) {
-        console.error('Error fetching polls:', error)
-        throw error
+      if (pollsError) {
+        console.error('Error fetching polls:', pollsError)
+        throw pollsError
       }
-      
-      console.log('Polls fetched successfully:', data?.length || 0)
-      setPolls(data || [])
+
+      // If we have polls, try to get profiles separately
+      if (pollsData && pollsData.length > 0) {
+        const userIds = [...new Set(pollsData.map(poll => poll.user_id))]
+        
+        const { data: profilesData, error: profilesError } = await supabase
+          .from('profiles')
+          .select('id, full_name, email, role')
+          .in('id', userIds)
+
+        if (profilesError) {
+          console.error('Error fetching profiles:', profilesError)
+          // Continue without profiles if there's an error
+        }
+
+        // Combine polls with profiles
+        const pollsWithProfiles = pollsData.map(poll => ({
+          ...poll,
+          profiles: profilesData?.find(profile => profile.id === poll.user_id) || null
+        }))
+
+        console.log('Polls fetched successfully:', pollsWithProfiles.length)
+        setPolls(pollsWithProfiles)
+      } else {
+        console.log('No polls found')
+        setPolls([])
+      }
     } catch (error) {
       console.error('Error fetching polls:', error)
       toast({
@@ -87,6 +123,7 @@ export function useSocialPolls() {
         description: "Failed to load polls. Please try again.",
         variant: "destructive"
       })
+      setPolls([])
     } finally {
       setLoading(false)
     }

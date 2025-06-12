@@ -28,7 +28,8 @@ export function SocialFeed() {
     posts: posts.length, 
     polls: polls.length, 
     isLoading, 
-    canCreate 
+    canCreate,
+    profile: profile
   });
 
   if (isLoading) {
@@ -80,48 +81,68 @@ export function SocialFeed() {
         </TabsList>
 
         <TabsContent value="all" className="space-y-4">
-          {/* Combined feed of posts and polls sorted by date */}
-          {[...posts, ...polls]
-            .sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime())
-            .map((item) => (
-              'content' in item ? (
-                <PostCard key={`post-${item.id}`} post={item} />
-              ) : (
-                <PollCard key={`poll-${item.id}`} poll={item} />
-              )
-            ))}
+          {/* Show posts first, then polls */}
+          {posts.length === 0 && polls.length === 0 ? (
+            <Card className="text-center py-12 bg-gray-50">
+              <CardContent>
+                <div className="text-gray-500 mb-4">
+                  <Filter className="h-12 w-12 mx-auto mb-3 opacity-50" />
+                  <h3 className="text-lg font-medium">No posts yet</h3>
+                  <p className="text-sm">Be the first to share something with your community!</p>
+                </div>
+                {canCreate && (
+                  <Button onClick={() => setShowPostComposer(true)} className="mt-4">
+                    Create First Post
+                  </Button>
+                )}
+              </CardContent>
+            </Card>
+          ) : (
+            <>
+              {posts.map((post) => (
+                <PostCard key={`post-${post.id}`} post={post} />
+              ))}
+              {polls.map((poll) => (
+                <PollCard key={`poll-${poll.id}`} poll={poll} />
+              ))}
+            </>
+          )}
         </TabsContent>
 
         <TabsContent value="posts" className="space-y-4">
-          {posts.map((post) => (
-            <PostCard key={post.id} post={post} />
-          ))}
+          {posts.length === 0 ? (
+            <Card className="text-center py-12 bg-gray-50">
+              <CardContent>
+                <div className="text-gray-500 mb-4">
+                  <h3 className="text-lg font-medium">No posts yet</h3>
+                  <p className="text-sm">Be the first to share a post!</p>
+                </div>
+              </CardContent>
+            </Card>
+          ) : (
+            posts.map((post) => (
+              <PostCard key={post.id} post={post} />
+            ))
+          )}
         </TabsContent>
 
         <TabsContent value="polls" className="space-y-4">
-          {polls.map((poll) => (
-            <PollCard key={poll.id} poll={poll} />
-          ))}
+          {polls.length === 0 ? (
+            <Card className="text-center py-12 bg-gray-50">
+              <CardContent>
+                <div className="text-gray-500 mb-4">
+                  <h3 className="text-lg font-medium">No polls yet</h3>
+                  <p className="text-sm">Be the first to create a poll!</p>
+                </div>
+              </CardContent>
+            </Card>
+          ) : (
+            polls.map((poll) => (
+              <PollCard key={poll.id} poll={poll} />
+            ))
+          )}
         </TabsContent>
       </Tabs>
-
-      {/* Empty state */}
-      {!isLoading && posts.length === 0 && polls.length === 0 && (
-        <Card className="text-center py-12 bg-gray-50">
-          <CardContent>
-            <div className="text-gray-500 mb-4">
-              <Filter className="h-12 w-12 mx-auto mb-3 opacity-50" />
-              <h3 className="text-lg font-medium">No posts yet</h3>
-              <p className="text-sm">Be the first to share something with your community!</p>
-            </div>
-            {canCreate && (
-              <Button onClick={() => setShowPostComposer(true)} className="mt-4">
-                Create First Post
-              </Button>
-            )}
-          </CardContent>
-        </Card>
-      )}
 
       {/* Composers */}
       <PostComposer 
