@@ -158,14 +158,12 @@ export function usePosts() {
         throw error
       }
 
-      // Update likes count
-      const { error: updateError } = await supabase
-        .from('posts')
-        .update({ likes_count: supabase.sql`likes_count + 1` })
-        .eq('id', postId)
+      // Use the database function to increment likes count
+      const { error: incrementError } = await supabase
+        .rpc('increment_likes', { post_id: postId })
 
-      if (updateError) {
-        console.error('Error updating likes count:', updateError)
+      if (incrementError) {
+        console.error('Error incrementing likes count:', incrementError)
       }
       
       console.log('Post liked successfully')
