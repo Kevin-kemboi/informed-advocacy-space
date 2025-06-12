@@ -19,7 +19,15 @@ export function SocialFeed() {
   
   const { posts, loading: postsLoading } = usePosts();
   const { polls, loading: pollsLoading } = useSocialPolls();
-  const { profile } = useAuth();
+  const { profile, user } = useAuth();
+
+  // Debug logging to understand role issues
+  console.log('SocialFeed Debug:', {
+    user: user,
+    profile: profile,
+    profileRole: profile?.role,
+    canCreate: profile?.role === 'citizen'
+  });
 
   const canCreate = profile?.role === 'citizen';
   const isLoading = postsLoading || pollsLoading;
@@ -47,10 +55,24 @@ export function SocialFeed() {
 
   return (
     <div className="max-w-2xl mx-auto space-y-6">
-      {/* Composer Section */}
-      {canCreate && (
-        <Card className="bg-gradient-to-r from-blue-50 to-purple-50 border-blue-200">
-          <CardHeader className="pb-4">
+      {/* Debug Card - Temporary to see what's happening */}
+      <Card className="bg-yellow-50 border-yellow-200">
+        <CardContent className="p-4">
+          <h3 className="font-semibold text-yellow-800 mb-2">Debug Info (temporary)</h3>
+          <div className="text-sm text-yellow-700">
+            <p><strong>User ID:</strong> {user?.id || 'Not logged in'}</p>
+            <p><strong>Profile:</strong> {profile ? 'Loaded' : 'Not loaded'}</p>
+            <p><strong>Role:</strong> {profile?.role || 'No role'}</p>
+            <p><strong>Can Create:</strong> {canCreate ? 'Yes' : 'No'}</p>
+            <p><strong>Full Name:</strong> {profile?.full_name || 'Not set'}</p>
+          </div>
+        </CardContent>
+      </Card>
+
+      {/* Composer Section - Always show for debugging */}
+      <Card className="bg-gradient-to-r from-blue-50 to-purple-50 border-blue-200">
+        <CardHeader className="pb-4">
+          {canCreate ? (
             <div className="flex gap-3">
               <Button 
                 onClick={() => setShowPostComposer(true)}
@@ -68,9 +90,23 @@ export function SocialFeed() {
                 Create Poll
               </Button>
             </div>
-          </CardHeader>
-        </Card>
-      )}
+          ) : (
+            <div className="text-center p-4 bg-gray-100 rounded-lg">
+              <p className="text-gray-600">
+                {!profile ? 'Loading profile...' : 
+                 profile.role === 'government_official' ? 'Government officials can view and vote on content.' :
+                 profile.role === 'admin' ? 'Administrators can moderate content.' :
+                 'Only citizens can create posts and polls.'}
+              </p>
+              {profile && profile.role !== 'citizen' && (
+                <p className="text-sm text-gray-500 mt-2">
+                  Your role: {profile.role?.replace('_', ' ')}
+                </p>
+              )}
+            </div>
+          )}
+        </CardHeader>
+      </Card>
 
       {/* Filter Tabs */}
       <Tabs value={feedFilter} onValueChange={(value) => setFeedFilter(value as any)}>
