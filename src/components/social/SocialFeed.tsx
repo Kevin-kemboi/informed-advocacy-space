@@ -19,34 +19,39 @@ export function SocialFeed() {
   
   const { posts, loading: postsLoading } = usePosts();
   const { polls, loading: pollsLoading } = useSocialPolls();
-  const { profile, user } = useAuth();
-
-  // Debug logging to understand role issues
-  console.log('SocialFeed Debug:', {
-    user: user,
-    profile: profile,
-    profileRole: profile?.role,
-    canCreate: profile?.role === 'citizen'
-  });
+  const { profile, user, loading: authLoading } = useAuth();
 
   const canCreate = profile?.role === 'citizen';
-  const isLoading = postsLoading || pollsLoading;
+  const isLoading = postsLoading || pollsLoading || authLoading;
 
   console.log('SocialFeed: Rendering with data:', { 
     posts: posts.length, 
     polls: polls.length, 
     isLoading, 
     canCreate,
-    profile: profile
+    profile: profile,
+    authLoading
   });
 
-  if (isLoading) {
+  if (authLoading) {
     return (
       <div className="max-w-2xl mx-auto space-y-6">
         <Card className="text-center py-12">
           <CardContent className="flex flex-col items-center gap-4">
             <Loader2 className="h-8 w-8 animate-spin text-blue-600" />
-            <p className="text-gray-600">Loading your community feed...</p>
+            <p className="text-gray-600">Loading your profile...</p>
+          </CardContent>
+        </Card>
+      </div>
+    );
+  }
+
+  if (!user) {
+    return (
+      <div className="max-w-2xl mx-auto space-y-6">
+        <Card className="text-center py-12">
+          <CardContent>
+            <p className="text-gray-600">Please sign in to access the community feed.</p>
           </CardContent>
         </Card>
       </div>
@@ -55,21 +60,7 @@ export function SocialFeed() {
 
   return (
     <div className="max-w-2xl mx-auto space-y-6">
-      {/* Debug Card - Temporary to see what's happening */}
-      <Card className="bg-yellow-50 border-yellow-200">
-        <CardContent className="p-4">
-          <h3 className="font-semibold text-yellow-800 mb-2">Debug Info (temporary)</h3>
-          <div className="text-sm text-yellow-700">
-            <p><strong>User ID:</strong> {user?.id || 'Not logged in'}</p>
-            <p><strong>Profile:</strong> {profile ? 'Loaded' : 'Not loaded'}</p>
-            <p><strong>Role:</strong> {profile?.role || 'No role'}</p>
-            <p><strong>Can Create:</strong> {canCreate ? 'Yes' : 'No'}</p>
-            <p><strong>Full Name:</strong> {profile?.full_name || 'Not set'}</p>
-          </div>
-        </CardContent>
-      </Card>
-
-      {/* Composer Section - Always show for debugging */}
+      {/* Composer Section */}
       <Card className="bg-gradient-to-r from-blue-50 to-purple-50 border-blue-200">
         <CardHeader className="pb-4">
           {canCreate ? (
@@ -117,8 +108,14 @@ export function SocialFeed() {
         </TabsList>
 
         <TabsContent value="all" className="space-y-4">
-          {/* Show posts first, then polls */}
-          {posts.length === 0 && polls.length === 0 ? (
+          {isLoading ? (
+            <Card className="text-center py-12">
+              <CardContent className="flex flex-col items-center gap-4">
+                <Loader2 className="h-8 w-8 animate-spin text-blue-600" />
+                <p className="text-gray-600">Loading community content...</p>
+              </CardContent>
+            </Card>
+          ) : posts.length === 0 && polls.length === 0 ? (
             <Card className="text-center py-12 bg-gray-50">
               <CardContent>
                 <div className="text-gray-500 mb-4">
@@ -146,13 +143,25 @@ export function SocialFeed() {
         </TabsContent>
 
         <TabsContent value="posts" className="space-y-4">
-          {posts.length === 0 ? (
+          {isLoading ? (
+            <Card className="text-center py-12">
+              <CardContent className="flex flex-col items-center gap-4">
+                <Loader2 className="h-8 w-8 animate-spin text-blue-600" />
+                <p className="text-gray-600">Loading posts...</p>
+              </CardContent>
+            </Card>
+          ) : posts.length === 0 ? (
             <Card className="text-center py-12 bg-gray-50">
               <CardContent>
                 <div className="text-gray-500 mb-4">
                   <h3 className="text-lg font-medium">No posts yet</h3>
                   <p className="text-sm">Be the first to share a post!</p>
                 </div>
+                {canCreate && (
+                  <Button onClick={() => setShowPostComposer(true)} className="mt-4">
+                    Create First Post
+                  </Button>
+                )}
               </CardContent>
             </Card>
           ) : (
@@ -163,13 +172,25 @@ export function SocialFeed() {
         </TabsContent>
 
         <TabsContent value="polls" className="space-y-4">
-          {polls.length === 0 ? (
+          {isLoading ? (
+            <Card className="text-center py-12">
+              <CardContent className="flex flex-col items-center gap-4">
+                <Loader2 className="h-8 w-8 animate-spin text-blue-600" />
+                <p className="text-gray-600">Loading polls...</p>
+              </CardContent>
+            </Card>
+          ) : polls.length === 0 ? (
             <Card className="text-center py-12 bg-gray-50">
               <CardContent>
                 <div className="text-gray-500 mb-4">
                   <h3 className="text-lg font-medium">No polls yet</h3>
                   <p className="text-sm">Be the first to create a poll!</p>
                 </div>
+                {canCreate && (
+                  <Button onClick={() => setShowPollComposer(true)} className="mt-4">
+                    Create First Poll
+                  </Button>
+                )}
               </CardContent>
             </Card>
           ) : (

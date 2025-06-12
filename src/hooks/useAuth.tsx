@@ -1,4 +1,3 @@
-
 import { useEffect, useState, createContext, useContext, ReactNode } from 'react'
 import { supabase, getRoleFromEmail, validateEmailDomain } from '@/lib/supabase'
 import { User } from '@supabase/supabase-js'
@@ -33,7 +32,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     console.log('Auth Provider: Starting initialization')
     
     // Get initial session
-    supabase.auth.getSession().then(({ data: { session } }) => {
+    supabase.auth.getSession().then(({ data: { session }, error }) => {
+      if (error) {
+        console.error('Error getting session:', error)
+      }
       console.log('Auth Provider: Initial session:', session?.user?.id)
       setUser(session?.user ?? null)
       if (session?.user) {
@@ -67,9 +69,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const fetchProfile = async (userId: string) => {
     try {
       console.log('Fetching profile for user:', userId)
-      
-      // Add a small delay to ensure the trigger has time to create the profile
-      await new Promise(resolve => setTimeout(resolve, 1000))
+      setLoading(true)
       
       const { data, error } = await supabase
         .from('profiles')
@@ -80,21 +80,52 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       if (error) {
         console.error('Error fetching profile:', error)
         
-        // If profile doesn't exist, the trigger might have failed, so we show an error
+        // If profile doesn't exist, try to create one with default values
         if (error.code === 'PGRST116') {
+          console.log('Profile not found, creating default profile...')
+          const { data: userData } = await supabase.auth.getUser()
+          if (userData.user) {
+            const { data: newProfile, error: createError } = await supabase
+              .from('profiles')
+              .insert({
+                id: userId,
+                full_name: userData.user.user_metadata?.full_name || 'User',
+                email: userData.user.email || '',
+                role: 'citizen'
+              })
+              .select()
+              .single()
+            
+            if (createError) {
+              console.error('Error creating profile:', createError)
+              toast({
+                title: "Profile Error",
+                description: "There was an issue creating your profile. Please contact support.",
+                variant: "destructive",
+              })
+            } else {
+              console.log('Profile created successfully:', newProfile)
+              setProfile(newProfile)
+            }
+          }
+        } else {
           toast({
             title: "Profile Error",
-            description: "There was an issue creating your profile. Please contact support.",
+            description: "Failed to load profile. Please try refreshing the page.",
             variant: "destructive",
           })
         }
-        throw error
+      } else {
+        console.log('Profile fetched successfully:', data)
+        setProfile(data)
       }
-      
-      console.log('Profile fetched successfully:', data)
-      setProfile(data)
     } catch (error) {
       console.error('Error fetching profile:', error)
+      toast({
+        title: "Error",
+        description: "Failed to load profile. Please try refreshing the page.",
+        variant: "destructive",
+      })
     } finally {
       setLoading(false)
     }
