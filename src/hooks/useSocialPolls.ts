@@ -12,6 +12,8 @@ export function useSocialPolls() {
   const { toast } = useToast()
   const pollsChannelRef = useRef<any>(null)
   const votesChannelRef = useRef<any>(null)
+  const isPollsSubscribedRef = useRef(false)
+  const isVotesSubscribedRef = useRef(false)
 
   useEffect(() => {
     console.log('useSocialPolls: Initializing with user:', user?.id)
@@ -21,54 +23,84 @@ export function useSocialPolls() {
     }
 
     // Clean up existing subscriptions
-    if (pollsChannelRef.current) {
-      supabase.removeChannel(pollsChannelRef.current)
+    if (pollsChannelRef.current && !isPollsSubscribedRef.current) {
+      try {
+        supabase.removeChannel(pollsChannelRef.current)
+      } catch (error) {
+        console.log('Error removing existing polls channel:', error)
+      }
       pollsChannelRef.current = null
+      isPollsSubscribedRef.current = false
     }
-    if (votesChannelRef.current) {
-      supabase.removeChannel(votesChannelRef.current)
+    if (votesChannelRef.current && !isVotesSubscribedRef.current) {
+      try {
+        supabase.removeChannel(votesChannelRef.current)
+      } catch (error) {
+        console.log('Error removing existing votes channel:', error)
+      }
       votesChannelRef.current = null
+      isVotesSubscribedRef.current = false
     }
 
     // Subscribe to real-time updates with unique channel names
-    pollsChannelRef.current = supabase
-      .channel(`polls-realtime-${Date.now()}`)
-      .on('postgres_changes', {
-        event: '*',
-        schema: 'public',
-        table: 'polls'
-      }, (payload) => {
-        console.log('Polls table changed:', payload)
-        fetchPolls()
-      })
-      .subscribe((status) => {
-        console.log('Polls subscription status:', status)
-      })
+    if (!pollsChannelRef.current && !isPollsSubscribedRef.current) {
+      pollsChannelRef.current = supabase
+        .channel(`polls-realtime-${Date.now()}-${Math.random()}`)
+        .on('postgres_changes', {
+          event: '*',
+          schema: 'public',
+          table: 'polls'
+        }, (payload) => {
+          console.log('Polls table changed:', payload)
+          fetchPolls()
+        })
+        .subscribe((status) => {
+          console.log('Polls subscription status:', status)
+          if (status === 'SUBSCRIBED') {
+            isPollsSubscribedRef.current = true
+          }
+        })
+    }
 
-    votesChannelRef.current = supabase
-      .channel(`votes-realtime-${Date.now()}`)
-      .on('postgres_changes', {
-        event: '*',
-        schema: 'public',
-        table: 'votes'
-      }, (payload) => {
-        console.log('Votes table changed:', payload)
-        fetchPolls()
-        if (user) fetchUserVotes()
-      })
-      .subscribe((status) => {
-        console.log('Votes subscription status:', status)
-      })
+    if (!votesChannelRef.current && !isVotesSubscribedRef.current) {
+      votesChannelRef.current = supabase
+        .channel(`votes-realtime-${Date.now()}-${Math.random()}`)
+        .on('postgres_changes', {
+          event: '*',
+          schema: 'public',
+          table: 'votes'
+        }, (payload) => {
+          console.log('Votes table changed:', payload)
+          fetchPolls()
+          if (user) fetchUserVotes()
+        })
+        .subscribe((status) => {
+          console.log('Votes subscription status:', status)
+          if (status === 'SUBSCRIBED') {
+            isVotesSubscribedRef.current = true
+          }
+        })
+    }
 
     return () => {
       console.log('Cleaning up polls and votes subscriptions')
       if (pollsChannelRef.current) {
-        supabase.removeChannel(pollsChannelRef.current)
+        try {
+          supabase.removeChannel(pollsChannelRef.current)
+        } catch (error) {
+          console.log('Error removing polls channel on cleanup:', error)
+        }
         pollsChannelRef.current = null
+        isPollsSubscribedRef.current = false
       }
       if (votesChannelRef.current) {
-        supabase.removeChannel(votesChannelRef.current)
+        try {
+          supabase.removeChannel(votesChannelRef.current)
+        } catch (error) {
+          console.log('Error removing votes channel on cleanup:', error)
+        }
         votesChannelRef.current = null
+        isVotesSubscribedRef.current = false
       }
     }
   }, [user])

@@ -10,37 +10,54 @@ export function usePosts() {
   const { user } = useAuth()
   const { toast } = useToast()
   const channelRef = useRef<any>(null)
+  const isSubscribedRef = useRef(false)
 
   useEffect(() => {
     console.log('usePosts: Initializing with user:', user?.id)
     fetchPosts()
     
     // Clean up any existing subscription first
-    if (channelRef.current) {
-      supabase.removeChannel(channelRef.current)
+    if (channelRef.current && !isSubscribedRef.current) {
+      try {
+        supabase.removeChannel(channelRef.current)
+      } catch (error) {
+        console.log('Error removing existing channel:', error)
+      }
       channelRef.current = null
+      isSubscribedRef.current = false
     }
 
-    // Create new subscription with a unique channel name
-    channelRef.current = supabase
-      .channel(`posts-realtime-${Date.now()}`)
-      .on('postgres_changes', {
-        event: '*',
-        schema: 'public',
-        table: 'posts'
-      }, (payload) => {
-        console.log('Posts table changed:', payload)
-        fetchPosts()
-      })
-      .subscribe((status) => {
-        console.log('Posts subscription status:', status)
-      })
+    // Only create subscription if we don't already have one
+    if (!channelRef.current && !isSubscribedRef.current) {
+      // Create new subscription with a unique channel name
+      channelRef.current = supabase
+        .channel(`posts-realtime-${Date.now()}-${Math.random()}`)
+        .on('postgres_changes', {
+          event: '*',
+          schema: 'public',
+          table: 'posts'
+        }, (payload) => {
+          console.log('Posts table changed:', payload)
+          fetchPosts()
+        })
+        .subscribe((status) => {
+          console.log('Posts subscription status:', status)
+          if (status === 'SUBSCRIBED') {
+            isSubscribedRef.current = true
+          }
+        })
+    }
 
     return () => {
       console.log('Cleaning up posts subscription')
       if (channelRef.current) {
-        supabase.removeChannel(channelRef.current)
+        try {
+          supabase.removeChannel(channelRef.current)
+        } catch (error) {
+          console.log('Error removing channel on cleanup:', error)
+        }
         channelRef.current = null
+        isSubscribedRef.current = false
       }
     }
   }, [user])
