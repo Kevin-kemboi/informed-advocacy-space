@@ -4,7 +4,9 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
-import { MessageSquare, Send, Bot, User } from "lucide-react";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { MessageSquare, Send, Bot, User, Brain } from "lucide-react";
+import { OpenSourceAI } from "./OpenSourceAI";
 
 export function AIChat() {
   const [messages, setMessages] = useState([
@@ -69,94 +71,114 @@ export function AIChat() {
 
   return (
     <div className="space-y-6">
-      <Card>
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2">
-            <Bot className="h-5 w-5" />
-            AI Government Assistant
-          </CardTitle>
-          <CardDescription>
-            Get AI-powered explanations of government documents and policies in simple terms
-          </CardDescription>
-        </CardHeader>
-        <CardContent>
-          <div className="space-y-4">
-            {/* Chat Messages */}
-            <div className="h-96 overflow-y-auto space-y-4 p-4 bg-gray-50 rounded-lg">
-              {messages.map((message) => (
-                <div
-                  key={message.id}
-                  className={`flex gap-3 ${message.type === "user" ? "justify-end" : "justify-start"}`}
-                >
-                  <div className={`flex gap-3 max-w-[80%] ${message.type === "user" ? "flex-row-reverse" : ""}`}>
-                    <div className={`w-8 h-8 rounded-full flex items-center justify-center ${
-                      message.type === "user" ? "bg-blue-500" : "bg-gray-600"
-                    }`}>
-                      {message.type === "user" ? (
-                        <User className="h-4 w-4 text-white" />
-                      ) : (
+      <Tabs defaultValue="chat" className="w-full">
+        <TabsList className="grid w-full grid-cols-2 bg-gray-100">
+          <TabsTrigger value="chat" className="data-[state=active]:bg-white">
+            <MessageSquare className="h-4 w-4 mr-2" />
+            Chat Assistant
+          </TabsTrigger>
+          <TabsTrigger value="analysis" className="data-[state=active]:bg-white">
+            <Brain className="h-4 w-4 mr-2" />
+            AI Analysis
+          </TabsTrigger>
+        </TabsList>
+
+        <TabsContent value="chat">
+          <Card className="shadow-lg">
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <Bot className="h-5 w-5" />
+                AI Government Assistant
+              </CardTitle>
+              <CardDescription>
+                Get AI-powered explanations of government documents and policies in simple terms
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              <div className="space-y-4">
+                {/* Chat Messages */}
+                <div className="h-96 overflow-y-auto space-y-4 p-4 bg-gray-50 rounded-lg">
+                  {messages.map((message) => (
+                    <div
+                      key={message.id}
+                      className={`flex gap-3 animate-fade-in ${message.type === "user" ? "justify-end" : "justify-start"}`}
+                    >
+                      <div className={`flex gap-3 max-w-[80%] ${message.type === "user" ? "flex-row-reverse" : ""}`}>
+                        <div className={`w-8 h-8 rounded-full flex items-center justify-center shadow-md ${
+                          message.type === "user" ? "bg-blue-500" : "bg-gray-600"
+                        }`}>
+                          {message.type === "user" ? (
+                            <User className="h-4 w-4 text-white" />
+                          ) : (
+                            <Bot className="h-4 w-4 text-white" />
+                          )}
+                        </div>
+                        <div className={`p-3 rounded-lg shadow-sm transition-all duration-200 hover:shadow-md ${
+                          message.type === "user" 
+                            ? "bg-blue-500 text-white" 
+                            : "bg-white border"
+                        }`}>
+                          <p className="text-sm whitespace-pre-line">{message.content}</p>
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                  
+                  {isTyping && (
+                    <div className="flex gap-3 animate-fade-in">
+                      <div className="w-8 h-8 rounded-full bg-gray-600 flex items-center justify-center shadow-md">
                         <Bot className="h-4 w-4 text-white" />
-                      )}
+                      </div>
+                      <div className="bg-white border p-3 rounded-lg shadow-sm">
+                        <div className="flex gap-1">
+                          <div className="w-2 h-2 bg-gray-400 rounded-full animate-bounce"></div>
+                          <div className="w-2 h-2 bg-gray-400 rounded-full animate-bounce" style={{ animationDelay: "0.1s" }}></div>
+                          <div className="w-2 h-2 bg-gray-400 rounded-full animate-bounce" style={{ animationDelay: "0.2s" }}></div>
+                        </div>
+                      </div>
                     </div>
-                    <div className={`p-3 rounded-lg ${
-                      message.type === "user" 
-                        ? "bg-blue-500 text-white" 
-                        : "bg-white border"
-                    }`}>
-                      <p className="text-sm whitespace-pre-line">{message.content}</p>
-                    </div>
+                  )}
+                </div>
+
+                {/* Input Area */}
+                <div className="flex gap-2">
+                  <Input
+                    value={inputMessage}
+                    onChange={(e) => setInputMessage(e.target.value)}
+                    placeholder="Ask me about government documents, policies, or procedures..."
+                    onKeyPress={(e) => e.key === "Enter" && handleSendMessage()}
+                    className="transition-all duration-200 focus:ring-2 focus:ring-blue-500"
+                  />
+                  <Button onClick={handleSendMessage} disabled={isTyping} className="transition-all duration-200 hover:scale-105">
+                    <Send className="h-4 w-4" />
+                  </Button>
+                </div>
+
+                {/* Suggested Questions */}
+                <div className="space-y-2">
+                  <p className="text-sm font-medium">Suggested questions:</p>
+                  <div className="flex flex-wrap gap-2">
+                    {suggestedQuestions.map((question, index) => (
+                      <Badge
+                        key={index}
+                        variant="outline"
+                        className="cursor-pointer hover:bg-gray-100 transition-all duration-200 hover:scale-105"
+                        onClick={() => setInputMessage(question)}
+                      >
+                        {question}
+                      </Badge>
+                    ))}
                   </div>
                 </div>
-              ))}
-              
-              {isTyping && (
-                <div className="flex gap-3">
-                  <div className="w-8 h-8 rounded-full bg-gray-600 flex items-center justify-center">
-                    <Bot className="h-4 w-4 text-white" />
-                  </div>
-                  <div className="bg-white border p-3 rounded-lg">
-                    <div className="flex gap-1">
-                      <div className="w-2 h-2 bg-gray-400 rounded-full animate-bounce"></div>
-                      <div className="w-2 h-2 bg-gray-400 rounded-full animate-bounce" style={{ animationDelay: "0.1s" }}></div>
-                      <div className="w-2 h-2 bg-gray-400 rounded-full animate-bounce" style={{ animationDelay: "0.2s" }}></div>
-                    </div>
-                  </div>
-                </div>
-              )}
-            </div>
-
-            {/* Input Area */}
-            <div className="flex gap-2">
-              <Input
-                value={inputMessage}
-                onChange={(e) => setInputMessage(e.target.value)}
-                placeholder="Ask me about government documents, policies, or procedures..."
-                onKeyPress={(e) => e.key === "Enter" && handleSendMessage()}
-              />
-              <Button onClick={handleSendMessage} disabled={isTyping}>
-                <Send className="h-4 w-4" />
-              </Button>
-            </div>
-
-            {/* Suggested Questions */}
-            <div className="space-y-2">
-              <p className="text-sm font-medium">Suggested questions:</p>
-              <div className="flex flex-wrap gap-2">
-                {suggestedQuestions.map((question, index) => (
-                  <Badge
-                    key={index}
-                    variant="outline"
-                    className="cursor-pointer hover:bg-gray-100"
-                    onClick={() => setInputMessage(question)}
-                  >
-                    {question}
-                  </Badge>
-                ))}
               </div>
-            </div>
-          </div>
-        </CardContent>
-      </Card>
+            </CardContent>
+          </Card>
+        </TabsContent>
+
+        <TabsContent value="analysis">
+          <OpenSourceAI />
+        </TabsContent>
+      </Tabs>
     </div>
   );
 }

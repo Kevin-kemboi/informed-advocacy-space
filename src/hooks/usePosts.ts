@@ -1,4 +1,3 @@
-
 import { useState, useEffect, useRef } from 'react'
 import { supabase, Post } from '@/lib/supabase'
 import { useAuth } from '@/hooks/useAuth'
@@ -234,12 +233,46 @@ export function usePosts() {
     }
   }
 
+  const deletePost = async (postId: string) => {
+    try {
+      if (!user) throw new Error('User not authenticated')
+
+      console.log('Deleting post:', postId)
+      const { error } = await supabase
+        .from('posts')
+        .delete()
+        .eq('id', postId)
+
+      if (error) {
+        console.error('Error deleting post:', error)
+        throw error
+      }
+
+      console.log('Post deleted successfully')
+      toast({
+        title: "Post Deleted",
+        description: "The post has been removed successfully."
+      })
+
+      // Refresh posts after deleting
+      fetchPosts()
+    } catch (error: any) {
+      console.error('Error in deletePost:', error)
+      toast({
+        title: "Error",
+        description: error.message,
+        variant: "destructive"
+      })
+    }
+  }
+
   return {
     posts,
     loading,
     createPost,
     likePost,
     flagPost,
+    deletePost,
     refetch: fetchPosts
   }
 }

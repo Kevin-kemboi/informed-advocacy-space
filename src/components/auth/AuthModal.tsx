@@ -6,7 +6,8 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Alert, AlertDescription } from "@/components/ui/alert";
 import { useAuth } from "@/hooks/useAuth";
 
 interface AuthModalProps {
@@ -14,13 +15,32 @@ interface AuthModalProps {
   onClose: () => void;
 }
 
+// Verification codes for special roles (in production, these would be from a secure source)
+const VERIFICATION_CODES = {
+  admin: "ADMIN2024",
+  government_official: "GOVT2024"
+};
+
 export function AuthModal({ isOpen, onClose }: AuthModalProps) {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [fullName, setFullName] = useState("");
   const [role, setRole] = useState<'citizen' | 'government_official' | 'admin'>("citizen");
+  const [verificationCode, setVerificationCode] = useState("");
   const [loading, setLoading] = useState(false);
+  const [showVerification, setShowVerification] = useState(false);
   const { signIn, signUp } = useAuth();
+
+  const handleRoleChange = (newRole: 'citizen' | 'government_official' | 'admin') => {
+    setRole(newRole);
+    setShowVerification(newRole !== 'citizen');
+    setVerificationCode("");
+  };
+
+  const validateVerificationCode = (selectedRole: string, code: string): boolean => {
+    if (selectedRole === 'citizen') return true;
+    return VERIFICATION_CODES[selectedRole as keyof typeof VERIFICATION_CODES] === code;
+  };
 
   const handleLogin = async () => {
     if (!email || !password) return;
@@ -40,6 +60,11 @@ export function AuthModal({ isOpen, onClose }: AuthModalProps) {
   const handleRegister = async () => {
     if (!email || !password || !fullName) return;
     
+    if (showVerification && !validateVerificationCode(role, verificationCode)) {
+      alert("Invalid verification code for the selected role.");
+      return;
+    }
+    
     setLoading(true);
     try {
       await signUp(email, password, fullName, role);
@@ -57,6 +82,8 @@ export function AuthModal({ isOpen, onClose }: AuthModalProps) {
     setPassword("");
     setFullName("");
     setRole("citizen");
+    setVerificationCode("");
+    setShowVerification(false);
   };
 
   return (
@@ -151,17 +178,39 @@ export function AuthModal({ isOpen, onClose }: AuthModalProps) {
                 </div>
                 <div>
                   <Label>Role</Label>
-                  <RadioGroup value={role} onValueChange={(value) => setRole(value as 'citizen' | 'government_official' | 'admin')} disabled={loading}>
-                    <div className="flex items-center space-x-2">
-                      <RadioGroupItem value="citizen" id="citizen" />
-                      <Label htmlFor="citizen">Citizen</Label>
-                    </div>
-                    <div className="flex items-center space-x-2">
-                      <RadioGroupItem value="government_official" id="official" />
-                      <Label htmlFor="official">Government Official</Label>
-                    </div>
-                  </RadioGroup>
+                  <Select value={role} onValueChange={handleRoleChange} disabled={loading}>
+                    <SelectTrigger>
+                      <SelectValue placeholder="Select your role" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="citizen">Citizen</SelectItem>
+                      <SelectItem value="government_official">Government Official</SelectItem>
+                      <SelectItem value="admin">Administrator</SelectItem>
+                    </SelectContent>
+                  </Select>
                 </div>
+                
+                {showVerification && (
+                  <div>
+                    <Label htmlFor="verificationCode">Verification Code</Label>
+                    <Input
+                      id="verificationCode"
+                      value={verificationCode}
+                      onChange={(e) => setVerificationCode(e.target.value)}
+                      placeholder="Enter verification code"
+                      disabled={loading}
+                    />
+                    <Alert className="mt-2">
+                      <AlertDescription>
+                        {role === 'admin' 
+                          ? "Admin access requires a verification code. Contact your system administrator."
+                          : "Government Official access requires a verification code. Contact your department administrator."
+                        }
+                      </AlertDescription>
+                    </Alert>
+                  </div>
+                )}
+                
                 <Button onClick={handleRegister} className="w-full" disabled={loading}>
                   {loading ? "Creating account..." : "Register"}
                 </Button>

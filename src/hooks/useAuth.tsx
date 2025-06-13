@@ -162,14 +162,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const signUp = async (email: string, password: string, fullName: string, role: 'citizen' | 'government_official' | 'admin') => {
     try {
       console.log('Attempting sign up for:', email, 'with role:', role)
-      
-      // Validate email domain matches role
-      if (!validateEmailDomain(email, role)) {
-        const requiredDomain = role === 'admin' ? '@admin.gmail.com' : 
-                              role === 'government_official' ? '@govt.gmail.com' : 
-                              'any email domain'
-        throw new Error(`${role} accounts require ${requiredDomain} email address`)
-      }
 
       const { data, error } = await supabase.auth.signUp({
         email,
