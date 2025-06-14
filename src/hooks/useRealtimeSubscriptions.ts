@@ -18,44 +18,44 @@ export function useRealtimeSubscriptions({
   mounted 
 }: UseRealtimeSubscriptionsProps) {
   const channelRef = useRef<any>(null)
-  const isSubscribingRef = useRef(false)
-  const isSubscribedRef = useRef(false)
+  const isInitializedRef = useRef(false)
 
   const cleanupSubscription = () => {
     if (channelRef.current) {
       console.log('useRealtimeSubscriptions: Cleaning up subscription')
       try {
+        // Use unsubscribe first, then remove channel
+        channelRef.current.unsubscribe()
         supabase.removeChannel(channelRef.current)
       } catch (error) {
         console.log('useRealtimeSubscriptions: Error cleaning up channel:', error)
       }
       channelRef.current = null
     }
-    isSubscribingRef.current = false
-    isSubscribedRef.current = false
+    isInitializedRef.current = false
   }
 
   const setupRealtimeSubscription = () => {
-    // Prevent multiple subscriptions - check both subscribing and subscribed states
-    if (isSubscribingRef.current || isSubscribedRef.current || !user || !mounted) {
-      console.log('useRealtimeSubscriptions: Subscription already in progress or active, skipping')
+    // Prevent multiple subscriptions
+    if (isInitializedRef.current || !user || !mounted) {
+      console.log('useRealtimeSubscriptions: Subscription already initialized or conditions not met, skipping')
       return
     }
 
+    // Cleanup any existing subscription first
+    cleanupSubscription()
+    
     try {
-      // Set subscribing flag immediately to prevent race conditions
-      isSubscribingRef.current = true
+      // Mark as initialized immediately
+      isInitializedRef.current = true
       
-      const channelName = `civic-connect-${user.id}`
-      console.log('useRealtimeSubscriptions: Setting up unified subscription:', channelName)
+      // Create a unique channel name with timestamp to avoid conflicts
+      const timestamp = Date.now()
+      const channelName = `civic-connect-${user.id}-${timestamp}`
+      console.log('useRealtimeSubscriptions: Setting up subscription:', channelName)
       
       channelRef.current = supabase
-        .channel(channelName, {
-          config: {
-            broadcast: { self: false },
-            presence: { key: user.id }
-          }
-        })
+        .channel(channelName)
         .on('postgres_changes', {
           event: '*',
           schema: 'public',
@@ -96,30 +96,22 @@ export function useRealtimeSubscriptions({
             onPostsChange()
           }
         })
-
-      // Subscribe to the channel
-      channelRef.current.subscribe((status) => {
-        console.log('useRealtimeSubscriptions: Subscription status:', status)
-        if (status === 'SUBSCRIBED') {
-          isSubscribedRef.current = true
-          isSubscribingRef.current = false
-        } else if (status === 'CHANNEL_ERROR' || status === 'TIMED_OUT' || status === 'CLOSED') {
-          console.error('useRealtimeSubscriptions: Subscription failed with status:', status)
-          isSubscribedRef.current = false
-          isSubscribingRef.current = false
-          channelRef.current = null
-        }
-      })
+        .subscribe((status) => {
+          console.log('useRealtimeSubscriptions: Subscription status:', status)
+          if (status === 'CHANNEL_ERROR' || status === 'TIMED_OUT' || status === 'CLOSED') {
+            console.error('useRealtimeSubscriptions: Subscription failed with status:', status)
+            cleanupSubscription()
+          }
+        })
     } catch (error) {
       console.error('useRealtimeSubscriptions: Error setting up subscription:', error)
-      isSubscribedRef.current = false
-      isSubscribingRef.current = false
+      isInitializedRef.current = false
       channelRef.current = null
     }
   }
 
   useEffect(() => {
-    if (user && mounted && !isSubscribingRef.current && !isSubscribedRef.current) {
+    if (user && mounted && !isInitializedRef.current) {
       setupRealtimeSubscription()
     }
 
