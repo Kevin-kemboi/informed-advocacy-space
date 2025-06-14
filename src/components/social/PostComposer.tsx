@@ -102,7 +102,12 @@ export function PostComposer({ isOpen, onClose }: PostComposerProps) {
 
     setIsSubmitting(true);
     try {
-      await createPost(content, uploadedUrls);
+      await createPost({
+        content: content.trim(),
+        category: 'general',
+        post_type: 'opinion',
+        media_urls: uploadedUrls
+      });
       setContent("");
       setSelectedFiles([]);
       setUploadedUrls([]);

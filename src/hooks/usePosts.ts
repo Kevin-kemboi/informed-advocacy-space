@@ -182,10 +182,98 @@ export function usePosts() {
     }
   }
 
+  const likePost = async (postId: string) => {
+    try {
+      if (!user) throw new Error('User not authenticated')
+
+      const { error } = await supabase
+        .from('likes')
+        .insert({
+          post_id: postId,
+          user_id: user.id
+        })
+
+      if (error) throw error
+
+      toast({
+        title: "Post Liked",
+        description: "You liked this post."
+      })
+
+      fetchPosts()
+    } catch (error: any) {
+      console.error('Error liking post:', error)
+      toast({
+        title: "Error",
+        description: "Failed to like post.",
+        variant: "destructive"
+      })
+    }
+  }
+
+  const flagPost = async (postId: string, reason: string) => {
+    try {
+      if (!user) throw new Error('User not authenticated')
+
+      const { error } = await supabase
+        .from('flags')
+        .insert({
+          post_id: postId,
+          user_id: user.id,
+          reason: reason
+        })
+
+      if (error) throw error
+
+      toast({
+        title: "Post Flagged",
+        description: "Thank you for reporting this content."
+      })
+    } catch (error: any) {
+      console.error('Error flagging post:', error)
+      toast({
+        title: "Error",
+        description: "Failed to flag post.",
+        variant: "destructive"
+      })
+    }
+  }
+
+  const deletePost = async (postId: string) => {
+    try {
+      if (!user) throw new Error('User not authenticated')
+
+      const { error } = await supabase
+        .from('posts')
+        .update({ status: 'deleted' })
+        .eq('id', postId)
+        .eq('user_id', user.id)
+
+      if (error) throw error
+
+      toast({
+        title: "Post Deleted",
+        description: "Your post has been deleted."
+      })
+
+      fetchPosts()
+    } catch (error: any) {
+      console.error('Error deleting post:', error)
+      toast({
+        title: "Error",
+        description: "Failed to delete post.",
+        variant: "destructive"
+      })
+    }
+  }
+
   return {
     posts,
     loading,
     createPost,
+    likePost,
+    flagPost,
+    deletePost,
     refetch: fetchPosts
   }
 }
