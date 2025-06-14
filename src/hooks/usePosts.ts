@@ -1,4 +1,3 @@
-
 import { useState, useEffect, useRef } from 'react'
 import { supabase, Post } from '@/lib/supabase'
 import { useAuth } from '@/hooks/useAuth'
@@ -66,19 +65,10 @@ export function usePosts() {
       console.log('usePosts: Fetching posts...')
       setLoading(true)
       
-      // Fetch main posts (not replies) with profiles
+      // First, fetch posts without profile join
       const { data: postsData, error: postsError } = await supabase
         .from('posts')
-        .select(`
-          *,
-          profiles (
-            full_name,
-            email,
-            role,
-            profile_pic_url,
-            verified
-          )
-        `)
+        .select('*')
         .is('parent_id', null)
         .eq('status', 'active')
         .order('created_at', { ascending: false })
@@ -90,29 +80,52 @@ export function usePosts() {
 
       console.log('usePosts: Raw posts data:', postsData)
 
+      // Then fetch profiles separately for each post
+      const postsWithProfiles = await Promise.all(
+        (postsData || []).map(async (post) => {
+          const { data: profileData } = await supabase
+            .from('profiles')
+            .select('full_name, email, role, profile_pic_url, verified')
+            .eq('id', post.user_id)
+            .single()
+
+          return {
+            ...post,
+            profiles: profileData
+          }
+        })
+      )
+
       // For each post, fetch its replies
       const postsWithReplies = await Promise.all(
-        (postsData || []).map(async (post) => {
+        postsWithProfiles.map(async (post) => {
           const { data: repliesData } = await supabase
             .from('posts')
-            .select(`
-              *,
-              profiles (
-                full_name,
-                email,
-                role,
-                profile_pic_url,
-                verified
-              )
-            `)
+            .select('*')
             .eq('parent_id', post.id)
             .eq('status', 'active')
             .order('created_at', { ascending: true })
 
-          console.log(`usePosts: Replies for post ${post.id}:`, repliesData?.length || 0)
+          // Fetch profiles for replies too
+          const repliesWithProfiles = await Promise.all(
+            (repliesData || []).map(async (reply) => {
+              const { data: replyProfileData } = await supabase
+                .from('profiles')
+                .select('full_name, email, role, profile_pic_url, verified')
+                .eq('id', reply.user_id)
+                .single()
+
+              return {
+                ...reply,
+                profiles: replyProfileData
+              }
+            })
+          )
+
+          console.log(`usePosts: Replies for post ${post.id}:`, repliesWithProfiles?.length || 0)
           return {
             ...post,
-            replies: repliesData || []
+            replies: repliesWithProfiles || []
           }
         })
       )
