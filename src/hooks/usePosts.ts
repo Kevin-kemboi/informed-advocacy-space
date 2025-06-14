@@ -63,7 +63,7 @@ export function usePosts() {
 
   const fetchPosts = async () => {
     try {
-      console.log('Fetching posts...')
+      console.log('usePosts: Fetching posts...')
       setLoading(true)
       
       // Fetch main posts (not replies) with profiles
@@ -84,9 +84,11 @@ export function usePosts() {
         .order('created_at', { ascending: false })
 
       if (postsError) {
-        console.error('Error fetching posts:', postsError)
+        console.error('usePosts: Error fetching posts:', postsError)
         throw postsError
       }
+
+      console.log('usePosts: Raw posts data:', postsData)
 
       // For each post, fetch its replies
       const postsWithReplies = await Promise.all(
@@ -107,6 +109,7 @@ export function usePosts() {
             .eq('status', 'active')
             .order('created_at', { ascending: true })
 
+          console.log(`usePosts: Replies for post ${post.id}:`, repliesData?.length || 0)
           return {
             ...post,
             replies: repliesData || []
@@ -114,10 +117,10 @@ export function usePosts() {
         })
       )
 
-      console.log('Posts fetched successfully:', postsWithReplies.length)
+      console.log('usePosts: Posts with replies:', postsWithReplies.length)
       setPosts(postsWithReplies)
     } catch (error) {
-      console.error('Error fetching posts:', error)
+      console.error('usePosts: Error in fetchPosts:', error)
       toast({
         title: "Error",
         description: "Failed to load posts. Please try again.",
@@ -141,7 +144,7 @@ export function usePosts() {
     try {
       if (!user) throw new Error('User not authenticated')
 
-      console.log('Creating post:', postData)
+      console.log('usePosts: Creating post:', postData)
       const { data, error } = await supabase
         .from('posts')
         .insert({
@@ -158,11 +161,11 @@ export function usePosts() {
         .single()
 
       if (error) {
-        console.error('Error creating post:', error)
+        console.error('usePosts: Error creating post:', error)
         throw error
       }
 
-      console.log('Post created successfully:', data)
+      console.log('usePosts: Post created successfully:', data)
       toast({
         title: postData.parent_id ? "Reply Posted" : "Post Created",
         description: postData.parent_id ? "Your reply has been posted successfully." : "Your post has been created successfully."
@@ -172,7 +175,7 @@ export function usePosts() {
       fetchPosts()
       return data
     } catch (error: any) {
-      console.error('Error in createPost:', error)
+      console.error('usePosts: Error in createPost:', error)
       toast({
         title: "Error",
         description: error.message,
@@ -186,6 +189,7 @@ export function usePosts() {
     try {
       if (!user) throw new Error('User not authenticated')
 
+      console.log('usePosts: Liking post:', postId)
       const { error } = await supabase
         .from('likes')
         .insert({
@@ -202,7 +206,7 @@ export function usePosts() {
 
       fetchPosts()
     } catch (error: any) {
-      console.error('Error liking post:', error)
+      console.error('usePosts: Error liking post:', error)
       toast({
         title: "Error",
         description: "Failed to like post.",
@@ -215,6 +219,7 @@ export function usePosts() {
     try {
       if (!user) throw new Error('User not authenticated')
 
+      console.log('usePosts: Flagging post:', postId, reason)
       const { error } = await supabase
         .from('flags')
         .insert({
@@ -230,7 +235,7 @@ export function usePosts() {
         description: "Thank you for reporting this content."
       })
     } catch (error: any) {
-      console.error('Error flagging post:', error)
+      console.error('usePosts: Error flagging post:', error)
       toast({
         title: "Error",
         description: "Failed to flag post.",
@@ -243,6 +248,7 @@ export function usePosts() {
     try {
       if (!user) throw new Error('User not authenticated')
 
+      console.log('usePosts: Deleting post:', postId)
       const { error } = await supabase
         .from('posts')
         .update({ status: 'deleted' })
@@ -258,7 +264,7 @@ export function usePosts() {
 
       fetchPosts()
     } catch (error: any) {
-      console.error('Error deleting post:', error)
+      console.error('usePosts: Error deleting post:', error)
       toast({
         title: "Error",
         description: "Failed to delete post.",

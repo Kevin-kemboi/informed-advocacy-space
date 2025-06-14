@@ -33,9 +33,18 @@ export function TwitterPostCard({ post, isReply = false }: TwitterPostCardProps)
   const [replyContent, setReplyContent] = useState('')
   const [isSubmittingReply, setIsSubmittingReply] = useState(false)
 
+  console.log('TwitterPostCard render:', { 
+    postId: post.id, 
+    isReply, 
+    author: post.profiles?.full_name,
+    repliesCount: post.replies?.length,
+    showReplyForm 
+  })
+
   const handleReply = async () => {
     if (!replyContent.trim() || !user) return
     
+    console.log('TwitterPostCard: Submitting reply:', { postId: post.id, content: replyContent })
     setIsSubmittingReply(true)
     try {
       await createPost({
@@ -47,8 +56,9 @@ export function TwitterPostCard({ post, isReply = false }: TwitterPostCardProps)
       })
       setReplyContent('')
       setShowReplyForm(false)
+      console.log('TwitterPostCard: Reply submitted successfully')
     } catch (error) {
-      console.error('Error creating reply:', error)
+      console.error('TwitterPostCard: Error creating reply:', error)
     } finally {
       setIsSubmittingReply(false)
     }
@@ -137,7 +147,10 @@ export function TwitterPostCard({ post, isReply = false }: TwitterPostCardProps)
                   variant="ghost"
                   size="sm"
                   className="text-gray-500 hover:text-blue-600 hover:bg-blue-50"
-                  onClick={() => setShowReplyForm(!showReplyForm)}
+                  onClick={() => {
+                    console.log('TwitterPostCard: Reply button clicked')
+                    setShowReplyForm(!showReplyForm)
+                  }}
                 >
                   <MessageCircle className="w-4 h-4 mr-2" />
                   {post.reply_count || 0}
@@ -228,9 +241,12 @@ export function TwitterPostCard({ post, isReply = false }: TwitterPostCardProps)
               {/* Replies */}
               {post.replies && post.replies.length > 0 && (
                 <div className="mt-4 space-y-4">
-                  {post.replies.map((reply) => (
-                    <TwitterPostCard key={reply.id} post={reply} isReply={true} />
-                  ))}
+                  {post.replies.map((reply) => {
+                    console.log('TwitterPostCard: Rendering reply:', reply.id)
+                    return (
+                      <TwitterPostCard key={reply.id} post={reply} isReply={true} />
+                    )
+                  })}
                 </div>
               )}
             </div>

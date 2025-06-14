@@ -11,6 +11,14 @@ export function TwitterFeed() {
   const { posts, loading, createPost } = usePosts()
   const { user, profile } = useAuth()
 
+  console.log('TwitterFeed render:', { 
+    user: user?.id, 
+    profile: profile?.full_name, 
+    postsCount: posts?.length, 
+    loading,
+    posts: posts?.slice(0, 2) // Log first 2 posts for debugging
+  })
+
   const handleCreatePost = async (postData: {
     content: string
     category: string
@@ -19,10 +27,17 @@ export function TwitterFeed() {
     location?: string
     hashtags?: string[]
   }) => {
-    await createPost(postData)
+    console.log('TwitterFeed: Creating post with data:', postData)
+    try {
+      await createPost(postData)
+      console.log('TwitterFeed: Post created successfully')
+    } catch (error) {
+      console.error('TwitterFeed: Error creating post:', error)
+    }
   }
 
   if (!user || !profile) {
+    console.log('TwitterFeed: No user or profile, showing sign in message')
     return (
       <TwitterLayout>
         <Card className="text-center py-12">
@@ -59,9 +74,17 @@ export function TwitterFeed() {
           </Card>
         ) : (
           <div className="space-y-4">
-            {posts.map((post) => (
-              <TwitterPostCard key={post.id} post={post} />
-            ))}
+            {posts.map((post, index) => {
+              console.log(`TwitterFeed: Rendering post ${index}:`, { 
+                id: post.id, 
+                content: post.content?.substring(0, 50) + '...', 
+                author: post.profiles?.full_name,
+                replies: post.replies?.length 
+              })
+              return (
+                <TwitterPostCard key={post.id} post={post} />
+              )
+            })}
           </div>
         )}
       </div>
