@@ -14,12 +14,14 @@ interface AuthModalProps {
   onClose?: () => void
 }
 
+type UserRole = "citizen" | "government_official" | "admin"
+
 export function AuthModal({ onClose }: AuthModalProps) {
   const [isLoading, setIsLoading] = useState(false)
   const [email, setEmail] = useState("")
   const [password, setPassword] = useState("")
   const [fullName, setFullName] = useState("")
-  const [role, setRole] = useState("citizen")
+  const [role, setRole] = useState<UserRole>("citizen")
   const { signIn, signUp } = useAuth()
   const { toast } = useToast()
 
@@ -206,7 +208,7 @@ export function AuthModal({ onClose }: AuthModalProps) {
 
               <div className="space-y-2">
                 <Label htmlFor="role">Role</Label>
-                <Select value={role} onValueChange={setRole}>
+                <Select value={role} onValueChange={(value: UserRole) => setRole(value)}>
                   <SelectTrigger>
                     <SelectValue placeholder="Select your role" />
                   </SelectTrigger>
