@@ -66,7 +66,9 @@ export function TwitterPostCard({ post, isReply = false }: TwitterPostCardProps)
   }
 
   const handleLike = async () => {
+    if (!user) return
     try {
+      console.log('TwitterPostCard: Attempting to like post:', post.id)
       await likePost(post.id)
     } catch (error) {
       console.error('TwitterPostCard: Error liking post:', error)
@@ -74,7 +76,9 @@ export function TwitterPostCard({ post, isReply = false }: TwitterPostCardProps)
   }
 
   const handleRepost = async () => {
+    if (!user) return
     try {
+      console.log('TwitterPostCard: Attempting to repost:', post.id)
       await repostPost(post.id)
     } catch (error) {
       console.error('TwitterPostCard: Error reposting:', error)
@@ -169,7 +173,7 @@ export function TwitterPostCard({ post, isReply = false }: TwitterPostCardProps)
                     size="sm"
                     className="text-gray-500 hover:text-blue-600 hover:bg-blue-50"
                     onClick={() => {
-                      console.log('TwitterPostCard: Reply button clicked')
+                      console.log('TwitterPostCard: Reply button clicked for post:', post.id)
                       setShowReplyForm(!showReplyForm)
                     }}
                   >
@@ -184,6 +188,7 @@ export function TwitterPostCard({ post, isReply = false }: TwitterPostCardProps)
                       isReposted ? 'text-green-600' : ''
                     }`}
                     onClick={handleRepost}
+                    disabled={!user}
                   >
                     <Repeat2 className="w-4 h-4 mr-2" />
                     {post.repost_count || 0}
@@ -196,6 +201,7 @@ export function TwitterPostCard({ post, isReply = false }: TwitterPostCardProps)
                       isLiked ? 'text-red-600' : ''
                     }`}
                     onClick={handleLike}
+                    disabled={!user}
                   >
                     <Heart className={`w-4 h-4 mr-2 ${isLiked ? 'fill-current' : ''}`} />
                     {post.likes_count || 0}

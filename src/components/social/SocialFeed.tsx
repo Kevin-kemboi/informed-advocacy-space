@@ -1,11 +1,12 @@
 
-import React from 'react'
+import React, { useState } from 'react'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Skeleton } from '@/components/ui/skeleton'
 import { AuroraBackground } from '@/components/ui/aurora-background'
 import { AnimatedList } from '@/components/ui/animated-list'
 import { TwitterPostCard } from '@/components/social/TwitterPostCard'
 import { PostComposer } from '@/components/social/PostComposer'
+import { PollComposer } from '@/components/social/PollComposer'
 import { PollCard } from '@/components/social/PollCard'
 import { useEnhancedPosts } from '@/hooks/useEnhancedPosts'
 import { useSocialPolls } from '@/hooks/useSocialPolls'
@@ -15,6 +16,8 @@ export function SocialFeed() {
   const { posts, loading: postsLoading } = useEnhancedPosts()
   const { polls, loading: pollsLoading } = useSocialPolls()
   const { profile, loading: authLoading } = useAuth()
+  const [showPostComposer, setShowPostComposer] = useState(false)
+  const [showPollComposer, setShowPollComposer] = useState(false)
 
   const canCreate = profile && ['citizen', 'government_official'].includes(profile.role)
   const isLoading = postsLoading || pollsLoading
@@ -49,8 +52,15 @@ export function SocialFeed() {
       <AuroraBackground className="absolute inset-0" />
       <div className="relative z-10 container mx-auto px-4 py-8 max-w-2xl">
         {canCreate && (
-          <div className="mb-8">
-            <PostComposer isOpen={true} onClose={() => {}} />
+          <div className="mb-8 space-y-4">
+            <PostComposer 
+              isOpen={showPostComposer} 
+              onClose={() => setShowPostComposer(false)} 
+            />
+            <PollComposer 
+              isOpen={showPollComposer} 
+              onClose={() => setShowPollComposer(false)} 
+            />
           </div>
         )}
 
