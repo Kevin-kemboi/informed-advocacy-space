@@ -35,7 +35,7 @@ export function TwitterPostComposer({
   parentId, 
   placeholder = "What's happening in your community?" 
 }: TwitterPostComposerProps) {
-  const { user } = useAuth()
+  const { user, profile } = useAuth()
   const [content, setContent] = useState('')
   const [category, setCategory] = useState('general')
   const [postType, setPostType] = useState('opinion')
@@ -100,7 +100,7 @@ export function TwitterPostComposer({
     setPostType('opinion')
   }
 
-  if (!user) return null
+  if (!user || !profile) return null
 
   return (
     <motion.div
@@ -113,10 +113,10 @@ export function TwitterPostComposer({
           <div className="flex gap-3">
             <ProfileCard 
               user={{
-                full_name: user.full_name,
-                role: user.role,
-                profile_pic_url: user.profile_pic_url,
-                verified: user.verified
+                full_name: profile.full_name || 'User',
+                role: profile.role || 'citizen',
+                profile_pic_url: profile.profile_pic_url,
+                verified: profile.verified
               }}
               size="md"
             />

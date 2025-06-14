@@ -1,6 +1,5 @@
-
 import { useState } from "react";
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -13,8 +12,8 @@ import { Shield, User, Crown, CheckCircle, AlertCircle } from "lucide-react";
 import { useAuth } from "@/hooks/useAuth";
 
 interface AuthModalProps {
-  isOpen: boolean;
-  onClose: () => void;
+  isOpen?: boolean;
+  onClose?: () => void;
 }
 
 // Enhanced verification system with multiple codes per role
@@ -24,6 +23,7 @@ const VERIFICATION_CODES = {
 };
 
 export function AuthModal({ isOpen, onClose }: AuthModalProps) {
+  const [internalOpen, setInternalOpen] = useState(false);
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [fullName, setFullName] = useState("");
@@ -33,6 +33,9 @@ export function AuthModal({ isOpen, onClose }: AuthModalProps) {
   const [showVerification, setShowVerification] = useState(false);
   const [verificationStatus, setVerificationStatus] = useState<'idle' | 'valid' | 'invalid'>('idle');
   const { signIn, signUp } = useAuth();
+
+  const modalOpen = isOpen !== undefined ? isOpen : internalOpen;
+  const handleOpenChange = onClose !== undefined ? onClose : setInternalOpen;
 
   const handleRoleChange = (newRole: 'citizen' | 'government_official' | 'admin') => {
     setRole(newRole);
@@ -63,7 +66,7 @@ export function AuthModal({ isOpen, onClose }: AuthModalProps) {
     setLoading(true);
     try {
       await signIn(email, password);
-      onClose();
+      handleOpenChange(false);
       resetForm();
     } catch (error) {
       // Error is handled in useAuth hook
@@ -82,7 +85,7 @@ export function AuthModal({ isOpen, onClose }: AuthModalProps) {
     setLoading(true);
     try {
       await signUp(email, password, fullName, role);
-      onClose();
+      handleOpenChange(false);
       resetForm();
     } catch (error) {
       // Error is handled in useAuth hook
@@ -117,8 +120,201 @@ export function AuthModal({ isOpen, onClose }: AuthModalProps) {
     }
   };
 
+  // If used without props, render as a trigger button
+  if (isOpen === undefined) {
+    return (
+      <Dialog open={modalOpen} onOpenChange={setInternalOpen}>
+        <DialogTrigger asChild>
+          <Button size="lg" className="bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700 text-white px-8 py-3 text-lg">
+            Get Started
+          </Button>
+        </DialogTrigger>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <div className="w-8 h-8 bg-gradient-to-br from-blue-600 to-purple-600 rounded-lg flex items-center justify-center">
+                <Shield className="h-4 w-4 text-white" />
+              </div>
+              Join CivicConnect
+            </DialogTitle>
+          </DialogHeader>
+          
+          <Tabs defaultValue="login" className="w-full">
+            <TabsList className="grid w-full grid-cols-2">
+              <TabsTrigger value="login">Sign In</TabsTrigger>
+              <TabsTrigger value="register">Register</TabsTrigger>
+            </TabsList>
+            
+            <TabsContent value="login">
+              <Card>
+                <CardHeader>
+                  <CardTitle>Welcome Back</CardTitle>
+                  <CardDescription>
+                    Sign in to your CivicConnect account
+                  </CardDescription>
+                </CardHeader>
+                <CardContent className="space-y-4">
+                  <div>
+                    <Label htmlFor="email">Email</Label>
+                    <Input
+                      id="email"
+                      type="email"
+                      value={email}
+                      onChange={(e) => setEmail(e.target.value)}
+                      placeholder="your.email@example.com"
+                      disabled={loading}
+                    />
+                  </div>
+                  <div>
+                    <Label htmlFor="password">Password</Label>
+                    <Input
+                      id="password"
+                      type="password"
+                      value={password}
+                      onChange={(e) => setPassword(e.target.value)}
+                      disabled={loading}
+                    />
+                  </div>
+                  <Button onClick={handleLogin} className="w-full" disabled={loading || !email || !password}>
+                    {loading ? "Signing in..." : "Sign In"}
+                  </Button>
+                </CardContent>
+              </Card>
+            </TabsContent>
+            
+            <TabsContent value="register">
+              <Card>
+                <CardHeader>
+                  <CardTitle>Create Account</CardTitle>
+                  <CardDescription>
+                    Join the civic engagement platform
+                  </CardDescription>
+                </CardHeader>
+                <CardContent className="space-y-4">
+                  <div>
+                    <Label htmlFor="fullName">Full Name</Label>
+                    <Input
+                      id="fullName"
+                      value={fullName}
+                      onChange={(e) => setFullName(e.target.value)}
+                      placeholder="John Doe"
+                      disabled={loading}
+                    />
+                  </div>
+                  <div>
+                    <Label htmlFor="email">Email</Label>
+                    <Input
+                      id="email"
+                      type="email"
+                      value={email}
+                      onChange={(e) => setEmail(e.target.value)}
+                      placeholder="your.email@example.com"
+                      disabled={loading}
+                    />
+                  </div>
+                  <div>
+                    <Label htmlFor="password">Password</Label>
+                    <Input
+                      id="password"
+                      type="password"
+                      value={password}
+                      onChange={(e) => setPassword(e.target.value)}
+                      placeholder="Minimum 6 characters"
+                      disabled={loading}
+                    />
+                  </div>
+                  <div>
+                    <Label>Account Type</Label>
+                    <Select value={role} onValueChange={handleRoleChange} disabled={loading}>
+                      <SelectTrigger>
+                        <SelectValue placeholder="Select your role" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="citizen">
+                          <div className="flex items-center gap-2">
+                            <User className="h-4 w-4" />
+                            Citizen
+                          </div>
+                        </SelectItem>
+                        <SelectItem value="government_official">
+                          <div className="flex items-center gap-2">
+                            <Shield className="h-4 w-4" />
+                            Government Official
+                          </div>
+                        </SelectItem>
+                        <SelectItem value="admin">
+                          <div className="flex items-center gap-2">
+                            <Crown className="h-4 w-4" />
+                            Administrator
+                          </div>
+                        </SelectItem>
+                      </SelectContent>
+                    </Select>
+                    
+                    {role && (
+                      <div className="mt-2">
+                        <Badge className={`${getRoleColor(role)}`}>
+                          {getRoleIcon(role)}
+                          <span className="ml-1 capitalize">{role.replace('_', ' ')}</span>
+                        </Badge>
+                      </div>
+                    )}
+                  </div>
+                  
+                  {showVerification && (
+                    <div>
+                      <Label htmlFor="verificationCode">
+                        Access Code
+                        {verificationStatus === 'valid' && <CheckCircle className="inline h-4 w-4 ml-1 text-green-600" />}
+                        {verificationStatus === 'invalid' && <AlertCircle className="inline h-4 w-4 ml-1 text-red-600" />}
+                      </Label>
+                      <Input
+                        id="verificationCode"
+                        value={verificationCode}
+                        onChange={(e) => handleVerificationCodeChange(e.target.value)}
+                        placeholder="Enter your access code"
+                        disabled={loading}
+                        className={
+                          verificationStatus === 'valid' ? 'border-green-500' :
+                          verificationStatus === 'invalid' ? 'border-red-500' : ''
+                        }
+                      />
+                      <Alert className="mt-2">
+                        <AlertDescription>
+                          {role === 'admin' 
+                            ? "Administrator access requires a special access code. Contact your system administrator or use: ADMIN2024, SUPER_ADMIN_2024, or CITY_ADMIN_KEY"
+                            : "Government Official access requires verification. Contact your department administrator or use: GOVT2024, OFFICIAL_ACCESS_2024, or MUNICIPAL_KEY_2024"
+                          }
+                        </AlertDescription>
+                      </Alert>
+                    </div>
+                  )}
+                  
+                  <Button 
+                    onClick={handleRegister} 
+                    className="w-full" 
+                    disabled={
+                      loading || 
+                      !email || 
+                      !password || 
+                      !fullName ||
+                      (showVerification && verificationStatus !== 'valid')
+                    }
+                  >
+                    {loading ? "Creating account..." : "Create Account"}
+                  </Button>
+                </CardContent>
+              </Card>
+            </TabsContent>
+          </Tabs>
+        </DialogContent>
+      </Dialog>
+    );
+  }
+
+  // If used with props, render as controlled modal
   return (
-    <Dialog open={isOpen} onOpenChange={onClose}>
+    <Dialog open={modalOpen} onOpenChange={handleOpenChange}>
       <DialogContent className="sm:max-w-md">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
