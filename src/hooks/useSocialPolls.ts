@@ -1,4 +1,3 @@
-
 import { useState, useEffect, useRef } from 'react'
 import { supabase, Poll, Vote } from '@/lib/supabase'
 import { useAuth } from '@/hooks/useAuth'
@@ -13,6 +12,7 @@ export function useSocialPolls() {
   const pollsChannelRef = useRef<any>(null)
   const votesChannelRef = useRef<any>(null)
   const mountedRef = useRef(true)
+  const subscriptionSetupRef = useRef(false)
 
   useEffect(() => {
     mountedRef.current = true
@@ -28,62 +28,10 @@ export function useSocialPolls() {
       fetchUserVotes()
     }
 
-    // Clean up existing subscriptions first
-    if (pollsChannelRef.current) {
-      try {
-        supabase.removeChannel(pollsChannelRef.current)
-      } catch (error) {
-        console.log('Error removing existing polls channel:', error)
-      }
-      pollsChannelRef.current = null
-    }
-    if (votesChannelRef.current) {
-      try {
-        supabase.removeChannel(votesChannelRef.current)
-      } catch (error) {
-        console.log('Error removing existing votes channel:', error)
-      }
-      votesChannelRef.current = null
-    }
-
-    // Subscribe to real-time updates with unique channel names
-    if (!pollsChannelRef.current) {
-      const pollsChannelName = `polls-realtime-${user?.id || 'anon'}-${Date.now()}`
-      pollsChannelRef.current = supabase
-        .channel(pollsChannelName)
-        .on('postgres_changes', {
-          event: '*',
-          schema: 'public',
-          table: 'polls'
-        }, (payload) => {
-          console.log('Polls table changed:', payload)
-          if (mountedRef.current) {
-            fetchPolls()
-          }
-        })
-        .subscribe((status) => {
-          console.log('Polls subscription status:', status)
-        })
-    }
-
-    if (!votesChannelRef.current) {
-      const votesChannelName = `votes-realtime-${user?.id || 'anon'}-${Date.now()}`
-      votesChannelRef.current = supabase
-        .channel(votesChannelName)
-        .on('postgres_changes', {
-          event: '*',
-          schema: 'public',
-          table: 'votes'
-        }, (payload) => {
-          console.log('Votes table changed:', payload)
-          if (mountedRef.current) {
-            fetchPolls()
-            if (user) fetchUserVotes()
-          }
-        })
-        .subscribe((status) => {
-          console.log('Votes subscription status:', status)
-        })
+    // Only set up subscription once per user
+    if (!subscriptionSetupRef.current) {
+      setupRealtimeSubscriptions()
+      subscriptionSetupRef.current = true
     }
 
     return () => {
@@ -104,8 +52,65 @@ export function useSocialPolls() {
         }
         votesChannelRef.current = null
       }
+      subscriptionSetupRef.current = false
     }
-  }, [user?.id]) // Only depend on user.id to prevent unnecessary re-subscriptions
+  }, [user?.id])
+
+  const setupRealtimeSubscriptions = () => {
+    // Clean up existing subscriptions first
+    if (pollsChannelRef.current) {
+      try {
+        supabase.removeChannel(pollsChannelRef.current)
+      } catch (error) {
+        console.log('Error removing existing polls channel:', error)
+      }
+      pollsChannelRef.current = null
+    }
+    if (votesChannelRef.current) {
+      try {
+        supabase.removeChannel(votesChannelRef.current)
+      } catch (error) {
+        console.log('Error removing existing votes channel:', error)
+      }
+      votesChannelRef.current = null
+    }
+
+    // Subscribe to real-time updates with unique channel names
+    const pollsChannelName = `polls-realtime-${user?.id || 'anon'}-${Date.now()}`
+    pollsChannelRef.current = supabase
+      .channel(pollsChannelName)
+      .on('postgres_changes', {
+        event: '*',
+        schema: 'public',
+        table: 'polls'
+      }, (payload) => {
+        console.log('Polls table changed:', payload)
+        if (mountedRef.current) {
+          fetchPolls()
+        }
+      })
+      .subscribe((status) => {
+        console.log('Polls subscription status:', status)
+      })
+
+    const votesChannelName = `votes-realtime-${user?.id || 'anon'}-${Date.now() + 1}`
+    votesChannelRef.current = supabase
+      .channel(votesChannelName)
+      .on('postgres_changes', {
+        event: '*',
+        schema: 'public',
+        table: 'votes'
+      }, (payload) => {
+        console.log('Votes table changed:', payload)
+        if (mountedRef.current) {
+          fetchPolls()
+          if (user) fetchUserVotes()
+        }
+      })
+      .subscribe((status) => {
+        console.log('Votes subscription status:', status)
+      })
+  }
 
   const fetchPolls = async () => {
     try {

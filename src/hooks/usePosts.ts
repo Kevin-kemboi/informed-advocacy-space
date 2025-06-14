@@ -1,4 +1,3 @@
-
 import { useState, useEffect, useRef } from 'react'
 import { supabase, Post } from '@/lib/supabase'
 import { useAuth } from '@/hooks/useAuth'
@@ -14,6 +13,7 @@ export function usePosts() {
   const mountedRef = useRef(true)
   const retryCountRef = useRef(0)
   const maxRetries = 3
+  const subscriptionSetupRef = useRef(false)
 
   useEffect(() => {
     mountedRef.current = true
@@ -26,43 +26,10 @@ export function usePosts() {
     console.log('usePosts: Initializing with user:', user?.id)
     fetchPosts()
 
-    // Clean up existing subscription first
-    if (channelRef.current) {
-      try {
-        console.log('Cleaning up existing posts subscription')
-        supabase.removeChannel(channelRef.current)
-      } catch (error) {
-        console.log('Error removing existing channel:', error)
-      }
-      channelRef.current = null
-    }
-
-    // Only set up realtime if we have a user and haven't subscribed yet
-    if (user && !channelRef.current) {
-      const channelName = `posts-realtime-${user.id}-${Date.now()}`
-      console.log('Setting up realtime subscription:', channelName)
-      
-      channelRef.current = supabase
-        .channel(channelName)
-        .on('postgres_changes', {
-          event: '*',
-          schema: 'public',
-          table: 'posts'
-        }, (payload) => {
-          console.log('Posts table changed:', payload.eventType)
-          
-          // Only update if component is still mounted
-          if (mountedRef.current) {
-            PostsService.debouncedFetch(() => {
-              if (mountedRef.current) {
-                fetchPosts()
-              }
-            }, 1000)
-          }
-        })
-        .subscribe((status) => {
-          console.log('Posts subscription status:', status)
-        })
+    // Only set up subscription once per user
+    if (user && !subscriptionSetupRef.current) {
+      setupRealtimeSubscription()
+      subscriptionSetupRef.current = true
     }
 
     return () => {
@@ -74,9 +41,48 @@ export function usePosts() {
           console.log('Error removing channel on cleanup:', error)
         }
         channelRef.current = null
+        subscriptionSetupRef.current = false
       }
     }
-  }, [user?.id]) // Only depend on user.id to prevent unnecessary re-subscriptions
+  }, [user?.id])
+
+  const setupRealtimeSubscription = () => {
+    // Clean up existing subscription first
+    if (channelRef.current) {
+      try {
+        console.log('Cleaning up existing posts subscription')
+        supabase.removeChannel(channelRef.current)
+      } catch (error) {
+        console.log('Error removing existing channel:', error)
+      }
+      channelRef.current = null
+    }
+
+    const channelName = `posts-realtime-${user?.id || 'anon'}-${Date.now()}`
+    console.log('Setting up realtime subscription:', channelName)
+    
+    channelRef.current = supabase
+      .channel(channelName)
+      .on('postgres_changes', {
+        event: '*',
+        schema: 'public',
+        table: 'posts'
+      }, (payload) => {
+        console.log('Posts table changed:', payload.eventType)
+        
+        // Only update if component is still mounted
+        if (mountedRef.current) {
+          PostsService.debouncedFetch(() => {
+            if (mountedRef.current) {
+              fetchPosts()
+            }
+          }, 1000)
+        }
+      })
+      .subscribe((status) => {
+        console.log('Posts subscription status:', status)
+      })
+  }
 
   const fetchPosts = async () => {
     try {
