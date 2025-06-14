@@ -1,3 +1,4 @@
+
 import { useState, useEffect, useRef } from 'react'
 import { supabase, Post } from '@/lib/supabase'
 import { useAuth } from '@/hooks/useAuth'
@@ -11,9 +12,6 @@ export function usePosts() {
   const { toast } = useToast()
   const channelRef = useRef<any>(null)
   const mountedRef = useRef(true)
-  const retryCountRef = useRef(0)
-  const maxRetries = 3
-  const hasSetupSubscription = useRef(false)
 
   useEffect(() => {
     mountedRef.current = true
@@ -26,14 +24,13 @@ export function usePosts() {
     console.log('usePosts: Initializing with user:', user?.id)
     fetchPosts()
 
-    // Only set up subscription once and only when we have a user
-    if (user && !hasSetupSubscription.current) {
+    // Set up subscription only once
+    if (user && !channelRef.current) {
       setupRealtimeSubscription()
-      hasSetupSubscription.current = true
     }
 
     return () => {
-      // Only cleanup on unmount or when user changes
+      // Clean up subscription on unmount
       if (channelRef.current) {
         console.log('Cleaning up posts subscription')
         try {
@@ -42,14 +39,13 @@ export function usePosts() {
           console.log('Error removing channel on cleanup:', error)
         }
         channelRef.current = null
-        hasSetupSubscription.current = false
       }
     }
-  }, [user?.id]) // Keep user?.id dependency but use ref to prevent duplicate subscriptions
+  }, [user?.id])
 
   const setupRealtimeSubscription = () => {
     // Don't create new subscription if one already exists
-    if (channelRef.current || hasSetupSubscription.current) {
+    if (channelRef.current) {
       console.log('Posts subscription already exists, skipping setup')
       return
     }
@@ -66,9 +62,8 @@ export function usePosts() {
       }, (payload) => {
         console.log('Posts table changed:', payload.eventType)
         
-        // Only update if component is still mounted
         if (mountedRef.current) {
-          PostsService.debouncedFetch(() => {
+          setTimeout(() => {
             if (mountedRef.current) {
               fetchPosts()
             }
@@ -84,12 +79,9 @@ export function usePosts() {
     try {
       console.log('usePosts: Fetching posts...')
       setLoading(true)
-      retryCountRef.current = 0
       
-      // Use the PostsService which has the correct query
-      const postsWithReplies = await fetchWithRetry()
+      const postsWithReplies = await PostsService.fetchPostsWithProfiles()
       
-      // Only update state if component is still mounted
       if (mountedRef.current) {
         if (postsWithReplies && postsWithReplies.length > 0) {
           console.log('usePosts: Posts with replies loaded:', postsWithReplies.length)
@@ -113,26 +105,6 @@ export function usePosts() {
       if (mountedRef.current) {
         setLoading(false)
       }
-    }
-  }
-
-  const fetchWithRetry = async () => {
-    try {
-      const posts = await PostsService.fetchPostsWithProfiles()
-      if (posts.length === 0 && retryCountRef.current < maxRetries) {
-        retryCountRef.current++
-        console.log(`usePosts: Retry ${retryCountRef.current}/${maxRetries} - No posts returned, retrying...`)
-        return new Promise(resolve => {
-          setTimeout(async () => {
-            const retryPosts = await fetchWithRetry()
-            resolve(retryPosts)
-          }, 1000)
-        })
-      }
-      return posts
-    } catch (error) {
-      console.error('usePosts: Error in fetchWithRetry:', error)
-      throw error
     }
   }
 
@@ -175,9 +147,8 @@ export function usePosts() {
         description: postData.parent_id ? "Your reply has been posted successfully." : "Your post has been created successfully."
       })
 
-      // Immediate refresh for better UX, but debounced to prevent conflicts
       if (mountedRef.current) {
-        PostsService.debouncedFetch(() => {
+        setTimeout(() => {
           if (mountedRef.current) {
             fetchPosts()
           }
@@ -215,9 +186,8 @@ export function usePosts() {
         description: "You liked this post."
       })
 
-      // Debounced refresh
       if (mountedRef.current) {
-        PostsService.debouncedFetch(() => {
+        setTimeout(() => {
           if (mountedRef.current) {
             fetchPosts()
           }
@@ -280,9 +250,8 @@ export function usePosts() {
         description: "Your post has been deleted."
       })
 
-      // Debounced refresh
       if (mountedRef.current) {
-        PostsService.debouncedFetch(() => {
+        setTimeout(() => {
           if (mountedRef.current) {
             fetchPosts()
           }

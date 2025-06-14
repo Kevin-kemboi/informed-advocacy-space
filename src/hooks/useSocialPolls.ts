@@ -12,7 +12,6 @@ export function useSocialPolls() {
   const pollsChannelRef = useRef<any>(null)
   const votesChannelRef = useRef<any>(null)
   const mountedRef = useRef(true)
-  const hasSetupSubscription = useRef(false)
 
   useEffect(() => {
     mountedRef.current = true
@@ -28,16 +27,15 @@ export function useSocialPolls() {
       fetchUserVotes()
     }
 
-    // Only set up subscription once and only when we have a user
-    if (user && !hasSetupSubscription.current) {
+    // Set up subscriptions only once
+    if (user && !pollsChannelRef.current && !votesChannelRef.current) {
       setupRealtimeSubscriptions()
-      hasSetupSubscription.current = true
     }
 
     return () => {
-      // Only cleanup on unmount or when user changes
-      console.log('Cleaning up polls and votes subscriptions')
+      // Clean up subscriptions
       if (pollsChannelRef.current) {
+        console.log('Cleaning up polls subscription')
         try {
           supabase.removeChannel(pollsChannelRef.current)
         } catch (error) {
@@ -46,6 +44,7 @@ export function useSocialPolls() {
         pollsChannelRef.current = null
       }
       if (votesChannelRef.current) {
+        console.log('Cleaning up votes subscription')
         try {
           supabase.removeChannel(votesChannelRef.current)
         } catch (error) {
@@ -53,18 +52,17 @@ export function useSocialPolls() {
         }
         votesChannelRef.current = null
       }
-      hasSetupSubscription.current = false
     }
-  }, [user?.id]) // Keep user?.id dependency but use ref to prevent duplicate subscriptions
+  }, [user?.id])
 
   const setupRealtimeSubscriptions = () => {
     // Don't create new subscriptions if they already exist
-    if ((pollsChannelRef.current || votesChannelRef.current) || hasSetupSubscription.current) {
+    if (pollsChannelRef.current || votesChannelRef.current) {
       console.log('Polls/votes subscriptions already exist, skipping setup')
       return
     }
 
-    // Subscribe to real-time updates with unique channel names
+    // Subscribe to polls changes
     const pollsChannelName = `polls-realtime-${user?.id || 'anon'}-${Date.now()}`
     pollsChannelRef.current = supabase
       .channel(pollsChannelName)
@@ -82,6 +80,7 @@ export function useSocialPolls() {
         console.log('Polls subscription status:', status)
       })
 
+    // Subscribe to votes changes
     const votesChannelName = `votes-realtime-${user?.id || 'anon'}-${Date.now() + 1}`
     votesChannelRef.current = supabase
       .channel(votesChannelName)
@@ -106,7 +105,6 @@ export function useSocialPolls() {
       console.log('Fetching polls...')
       setLoading(true)
       
-      // First try without profiles join to see if basic query works
       const { data: pollsData, error: pollsError } = await supabase
         .from('polls')
         .select('*')
@@ -118,7 +116,6 @@ export function useSocialPolls() {
         throw pollsError
       }
 
-      // If we have polls, try to get profiles separately
       if (pollsData && pollsData.length > 0) {
         const userIds = [...new Set(pollsData.map(poll => poll.user_id))]
         
@@ -129,10 +126,8 @@ export function useSocialPolls() {
 
         if (profilesError) {
           console.error('Error fetching profiles:', profilesError)
-          // Continue without profiles if there's an error
         }
 
-        // Combine polls with profiles
         const pollsWithProfiles = pollsData.map(poll => ({
           ...poll,
           profiles: profilesData?.find(profile => profile.id === poll.user_id) || null
@@ -222,7 +217,6 @@ export function useSocialPolls() {
         description: "Your poll has been created successfully."
       })
 
-      // Refresh polls after creating
       if (mountedRef.current) {
         fetchPolls()
       }
@@ -242,7 +236,6 @@ export function useSocialPolls() {
     try {
       if (!user) throw new Error('User not authenticated')
 
-      // Check if user already voted
       const existingVote = userVotes.find(vote => vote.poll_id === pollId)
       if (existingVote) {
         throw new Error('You have already voted on this poll')
@@ -268,7 +261,6 @@ export function useSocialPolls() {
         description: "Your vote has been recorded successfully."
       })
 
-      // Refresh data after voting
       if (mountedRef.current) {
         fetchPolls()
         fetchUserVotes()
