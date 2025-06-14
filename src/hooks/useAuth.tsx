@@ -1,4 +1,3 @@
-
 import { useEffect, useState, createContext, useContext, ReactNode } from 'react'
 import { supabase, getRoleFromEmail, validateEmailDomain } from '@/lib/supabase'
 import { User } from '@supabase/supabase-js'
@@ -73,7 +72,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const fetchProfile = async (userId: string) => {
     try {
-      console.log('Fetching profile for user:', userId)
+      console.log('Auth: Fetching profile for user:', userId)
       setLoading(true)
       
       const { data, error } = await supabase
@@ -83,18 +82,19 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         .single()
 
       if (error) {
-        console.error('Error fetching profile:', error)
+        console.error('Auth: Error fetching profile:', error)
         
         // If profile doesn't exist, try to create one with default values
         if (error.code === 'PGRST116') {
-          console.log('Profile not found, creating default profile...')
+          console.log('Auth: Profile not found, creating default profile...')
           const { data: userData } = await supabase.auth.getUser()
           if (userData.user) {
+            console.log('Auth: Creating profile with user data:', userData.user.email)
             const { data: newProfile, error: createError } = await supabase
               .from('profiles')
               .insert({
                 id: userId,
-                full_name: userData.user.user_metadata?.full_name || 'User',
+                full_name: userData.user.user_metadata?.full_name || userData.user.email?.split('@')[0] || 'User',
                 email: userData.user.email || '',
                 role: 'citizen'
               })
@@ -102,14 +102,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
               .single()
             
             if (createError) {
-              console.error('Error creating profile:', createError)
+              console.error('Auth: Error creating profile:', createError)
               toast({
                 title: "Profile Error",
                 description: "There was an issue creating your profile. Please contact support.",
                 variant: "destructive",
               })
             } else {
-              console.log('Profile created successfully:', newProfile)
+              console.log('Auth: Profile created successfully:', newProfile)
               setProfile(newProfile)
             }
           }
@@ -121,17 +121,18 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           })
         }
       } else {
-        console.log('Profile fetched successfully:', data)
+        console.log('Auth: Profile fetched successfully:', data)
         setProfile(data)
       }
     } catch (error) {
-      console.error('Error fetching profile:', error)
+      console.error('Auth: Error in fetchProfile:', error)
       toast({
         title: "Error",
         description: "Failed to load profile. Please try refreshing the page.",
         variant: "destructive",
       })
     } finally {
+      console.log('Auth: Setting loading to false')
       setLoading(false)
     }
   }
@@ -227,7 +228,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     signOut,
   }
 
-  console.log('Auth Provider: Current state:', { user: user?.id, profile: profile?.id, loading })
+  console.log('Auth Provider: Current state:', { user: user?.id, profile: profile?.full_name, loading })
 
   return (
     <AuthContext.Provider value={value}>
