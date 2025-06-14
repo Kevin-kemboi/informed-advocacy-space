@@ -1,4 +1,3 @@
-
 import { useEffect, useState, useCallback, useRef } from 'react';
 import { supabase } from '@/lib/supabase';
 import { User, Session } from '@supabase/supabase-js';
@@ -18,8 +17,8 @@ export interface AuthSessionHook {
 export function useAuthSession(): AuthSessionHook {
   const [user, setUser] = useState<User | null>(null);
   const [session, setSession] = useState<Session | null>(null);
-  const [loadingInitial, setLoadingInitial] = useState(true); // For initial session load
-  const [isProcessingAuthAction, setIsProcessingAuthAction] = useState(false); // For signIn/signUp/signOut
+  const [loadingInitial, setLoadingInitial] = useState(true);
+  const [isProcessingAuthAction, setIsProcessingAuthAction] = useState(false);
   const [onAuthStateChangeActive, setOnAuthStateChangeActive] = useState(false);
   const { toast } = useToast();
   const isMountedRef = useRef(true);
@@ -45,8 +44,6 @@ export function useAuthSession(): AuthSessionHook {
       console.log('useAuthSession: Initial getSession() completed.', initialSession ? `User: ${initialSession.user.id}` : 'No initial session.');
       setSession(initialSession);
       setUser(initialSession?.user ?? null);
-      // Initial loading is set to false by onAuthStateChange or if no session initially
-      // setLoadingInitial(false); // This will be handled by onAuthStateChange INITIAL_SESSION or here if no user
       if (!initialSession?.user) {
         setLoadingInitial(false);
       }
@@ -67,8 +64,8 @@ export function useAuthSession(): AuthSessionHook {
         console.log(`useAuthSession: onAuthStateChange - Event: ${_event}, User: ${currentSession?.user?.id}`);
         setSession(currentSession);
         setUser(currentSession?.user ?? null);
-        setLoadingInitial(false); // Always set loading to false after an auth event
-        setOnAuthStateChangeActive(true); // Indicate that the listener has processed an event
+        setLoadingInitial(false); 
+        setOnAuthStateChangeActive(true); 
       }
     );
 
@@ -81,7 +78,7 @@ export function useAuthSession(): AuthSessionHook {
     };
   }, []);
 
-  const signIn = async (email: string, password: string) => {
+  const signIn = useCallback(async (email: string, password: string) => {
     setIsProcessingAuthAction(true);
     try {
       console.log('useAuthSession: Attempting sign in for:', email);
@@ -97,9 +94,9 @@ export function useAuthSession(): AuthSessionHook {
     } finally {
       if (isMountedRef.current) setIsProcessingAuthAction(false);
     }
-  };
+  }, [toast]);
 
-  const signUp = async (email: string, password: string, fullName: string, role: 'citizen' | 'government_official' | 'admin') => {
+  const signUp = useCallback(async (email: string, password: string, fullName: string, role: 'citizen' | 'government_official' | 'admin') => {
     setIsProcessingAuthAction(true);
     try {
       console.log('useAuthSession: Attempting sign up for:', email, 'with role:', role);
@@ -122,9 +119,9 @@ export function useAuthSession(): AuthSessionHook {
     } finally {
       if (isMountedRef.current) setIsProcessingAuthAction(false);
     }
-  };
+  }, [toast]);
 
-  const signOut = async () => {
+  const signOut = useCallback(async () => {
     setIsProcessingAuthAction(true);
     try {
       const { error } = await supabase.auth.signOut();
@@ -135,7 +132,7 @@ export function useAuthSession(): AuthSessionHook {
     } finally {
       if (isMountedRef.current) setIsProcessingAuthAction(false);
     }
-  };
+  }, [toast]);
 
   return { user, session, loadingInitial, isProcessingAuthAction, signIn, signUp, signOut, onAuthStateChangeActive };
 }
