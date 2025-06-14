@@ -2,22 +2,29 @@
 import { supabase } from '@/lib/supabase'
 
 export class PostsService {
-  private static isFetching = false
+  private static fetchPromise: Promise<any> | null = null;
 
   static async fetchPostsWithProfiles() {
-    // Prevent multiple simultaneous fetches
-    if (this.isFetching) {
-      console.log('PostsService: Already fetching, waiting...')
-      // Wait a bit and try again instead of skipping
-      await new Promise(resolve => setTimeout(resolve, 500))
-      if (this.isFetching) {
-        console.log('PostsService: Still fetching, returning empty array')
-        return []
-      }
+    // If there's an ongoing fetch, wait for it to complete instead of starting a new one
+    if (this.fetchPromise) {
+      console.log('PostsService: Already fetching, waiting for completion...')
+      return this.fetchPromise;
     }
 
-    this.isFetching = true
+    // Create a new fetch promise and store it
+    this.fetchPromise = this._fetchPostsWithProfilesInternal();
     
+    try {
+      // Wait for the fetch to complete
+      const result = await this.fetchPromise;
+      return result;
+    } finally {
+      // Clear the promise reference once complete (whether successful or error)
+      this.fetchPromise = null;
+    }
+  }
+
+  private static async _fetchPostsWithProfilesInternal() {
     try {
       console.log('PostsService: Starting to fetch posts with profiles...')
       
@@ -44,10 +51,10 @@ export class PostsService {
         .is('parent_id', null)
         .eq('status', 'active')
         .order('created_at', { ascending: false })
-        .limit(20)
+        .limit(50) // Increased from 20 to 50 to show more posts
 
       console.log('PostsService: Basic posts query result:', { 
-        data: postsData?.length, 
+        postsCount: postsData?.length, 
         error: postsError,
         firstPost: postsData?.[0]
       })
@@ -84,7 +91,6 @@ export class PostsService {
       console.log('PostsService: Profiles query result:', { 
         profilesCount: profilesData?.length, 
         error: profilesError,
-        profiles: profilesData
       })
 
       // Create a map of profiles for quick lookup
@@ -95,7 +101,7 @@ export class PostsService {
         })
       }
 
-      // For missing profiles, try to create them
+      // For missing profiles, create fallbacks
       const missingUserIds = userIds.filter(id => !profilesMap.has(id))
       console.log('PostsService: Missing profiles for users:', missingUserIds)
 
@@ -191,8 +197,6 @@ export class PostsService {
     } catch (error) {
       console.error('PostsService: Critical error in fetchPostsWithProfiles:', error)
       return []
-    } finally {
-      this.isFetching = false
     }
   }
 

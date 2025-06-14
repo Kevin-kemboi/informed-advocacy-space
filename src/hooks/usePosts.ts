@@ -12,6 +12,8 @@ export function usePosts() {
   const channelRef = useRef<any>(null)
   const isSubscribedRef = useRef(false)
   const mountedRef = useRef(true)
+  const retryCountRef = useRef(0)
+  const maxRetries = 3
 
   useEffect(() => {
     mountedRef.current = true
@@ -56,7 +58,7 @@ export function usePosts() {
               if (mountedRef.current) {
                 fetchPosts()
               }
-            }, 2000)
+            }, 1000)
           }
         })
         .subscribe((status) => {
@@ -87,9 +89,10 @@ export function usePosts() {
     try {
       console.log('usePosts: Fetching posts...')
       setLoading(true)
+      retryCountRef.current = 0
       
       // Use the PostsService which has the correct query
-      const postsWithReplies = await PostsService.fetchPostsWithProfiles()
+      const postsWithReplies = await fetchWithRetry()
       
       // Only update state if component is still mounted
       if (mountedRef.current) {
@@ -115,6 +118,26 @@ export function usePosts() {
       if (mountedRef.current) {
         setLoading(false)
       }
+    }
+  }
+
+  const fetchWithRetry = async () => {
+    try {
+      const posts = await PostsService.fetchPostsWithProfiles()
+      if (posts.length === 0 && retryCountRef.current < maxRetries) {
+        retryCountRef.current++
+        console.log(`usePosts: Retry ${retryCountRef.current}/${maxRetries} - No posts returned, retrying...`)
+        return new Promise(resolve => {
+          setTimeout(async () => {
+            const retryPosts = await fetchWithRetry()
+            resolve(retryPosts)
+          }, 1000)
+        })
+      }
+      return posts
+    } catch (error) {
+      console.error('usePosts: Error in fetchWithRetry:', error)
+      throw error
     }
   }
 

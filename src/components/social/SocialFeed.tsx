@@ -1,5 +1,5 @@
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -7,7 +7,7 @@ import { PostComposer } from "./PostComposer";
 import { PollComposer } from "./PollComposer";
 import { PostCard } from "./PostCard";
 import { PollCard } from "./PollCard";
-import { Plus, Filter, Loader2 } from "lucide-react";
+import { Plus, Filter, Loader2, RefreshCw } from "lucide-react";
 import { usePosts } from "@/hooks/usePosts";
 import { useSocialPolls } from "@/hooks/useSocialPolls";
 import { useAuth } from "@/hooks/useAuth";
@@ -17,12 +17,19 @@ export function SocialFeed() {
   const [showPollComposer, setShowPollComposer] = useState(false);
   const [feedFilter, setFeedFilter] = useState<'all' | 'posts' | 'polls'>('all');
   
-  const { posts, loading: postsLoading } = usePosts();
+  const { posts, loading: postsLoading, refetch: refetchPosts } = usePosts();
   const { polls, loading: pollsLoading } = useSocialPolls();
   const { profile, user, loading: authLoading } = useAuth();
 
   const canCreate = profile?.role === 'citizen';
   const isLoading = postsLoading || pollsLoading || authLoading;
+  const [isRefreshing, setIsRefreshing] = useState(false);
+
+  const handleRefresh = async () => {
+    setIsRefreshing(true);
+    await refetchPosts();
+    setTimeout(() => setIsRefreshing(false), 1000);
+  };
 
   console.log('SocialFeed: Rendering with data:', { 
     posts: posts.length, 
@@ -63,6 +70,19 @@ export function SocialFeed() {
       {/* Composer Section */}
       <Card className="bg-gradient-to-r from-blue-50 to-purple-50 border-blue-200">
         <CardHeader className="pb-4">
+          <div className="flex justify-between items-center mb-3">
+            <h2 className="text-xl font-semibold">Community Feed</h2>
+            <Button 
+              variant="ghost" 
+              size="sm"
+              onClick={handleRefresh}
+              disabled={isRefreshing || isLoading}
+              className="flex items-center gap-1"
+            >
+              <RefreshCw className={`h-4 w-4 ${isRefreshing ? 'animate-spin' : ''}`} />
+              Refresh
+            </Button>
+          </div>
           {canCreate ? (
             <div className="flex gap-3">
               <Button 
@@ -132,12 +152,16 @@ export function SocialFeed() {
             </Card>
           ) : (
             <>
-              {posts.map((post) => (
-                <PostCard key={`post-${post.id}`} post={post} />
-              ))}
-              {polls.map((poll) => (
-                <PollCard key={`poll-${poll.id}`} poll={poll} />
-              ))}
+              {/* Combined and sorted content */}
+              {[...posts, ...polls]
+                .sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime())
+                .map((item) => (
+                  'question' in item ? (
+                    <PollCard key={`poll-${item.id}`} poll={item} />
+                  ) : (
+                    <PostCard key={`post-${item.id}`} post={item} />
+                  )
+                ))}
             </>
           )}
         </TabsContent>
