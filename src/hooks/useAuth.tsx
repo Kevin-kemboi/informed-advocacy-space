@@ -77,7 +77,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const fetchProfile = async (userId: string) => {
     console.log('Auth: Starting fetchProfile for user:', userId)
-    setLoading(true)
     
     try {
       console.log('Auth: Attempting to fetch profile from database...')
