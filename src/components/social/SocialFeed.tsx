@@ -1,3 +1,4 @@
+
 import React from 'react'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Skeleton } from '@/components/ui/skeleton'
@@ -29,7 +30,6 @@ export function SocialFeed() {
       email: profile.email,
       role: profile.role,
       created_at: profile.created_at,
-      status: profile.status,
       profile_pic_url: profile.profile_pic_url,
       bio: profile.bio,
       location: profile.location,
@@ -38,23 +38,6 @@ export function SocialFeed() {
     authLoading
   })
 
-  const loadingSkeletons = (
-    <div className="space-y-6">
-      {[...Array(3)].map((_, i) => (
-        <Card key={i} className="p-6">
-          <div className="flex space-x-4">
-            <Skeleton className="h-12 w-12 rounded-full" />
-            <div className="space-y-2 flex-1">
-              <Skeleton className="h-4 w-[250px]" />
-              <Skeleton className="h-4 w-[200px]" />
-              <Skeleton className="h-20 w-full" />
-            </div>
-          </div>
-        </Card>
-      ))}
-    </div>
-  )
-
   // Combine and sort posts and polls by creation date
   const feedItems = [
     ...posts.map(post => ({ ...post, type: 'post' as const })),
@@ -62,11 +45,12 @@ export function SocialFeed() {
   ].sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime())
 
   return (
-    <AuroraBackground className="min-h-screen">
-      <div className="container mx-auto px-4 py-8 max-w-2xl">
+    <div className="relative min-h-screen">
+      <AuroraBackground className="absolute inset-0" />
+      <div className="relative z-10 container mx-auto px-4 py-8 max-w-2xl">
         {canCreate && (
           <div className="mb-8">
-            <PostComposer />
+            <PostComposer isOpen={true} onClose={() => {}} />
           </div>
         )}
 
@@ -111,6 +95,6 @@ export function SocialFeed() {
           </AnimatedList>
         )}
       </div>
-    </AuroraBackground>
+    </div>
   )
 }
