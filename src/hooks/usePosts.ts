@@ -1,4 +1,3 @@
-
 import { useState, useEffect, useRef } from 'react'
 import { supabase, Post } from '@/lib/supabase'
 import { useAuth } from '@/hooks/useAuth'
@@ -78,7 +77,7 @@ export function usePosts() {
       console.log('usePosts: Fetching posts...')
       setLoading(true)
       
-      // First, fetch posts without profile join
+      // First, fetch main posts (no parent_id)
       const { data: postsData, error: postsError } = await supabase
         .from('posts')
         .select('*')
@@ -109,7 +108,7 @@ export function usePosts() {
         })
       )
 
-      // For each post, fetch its replies
+      // For each post, fetch its replies with profiles
       const postsWithReplies = await Promise.all(
         postsWithProfiles.map(async (post) => {
           const { data: repliesData } = await supabase
@@ -198,8 +197,8 @@ export function usePosts() {
         description: postData.parent_id ? "Your reply has been posted successfully." : "Your post has been created successfully."
       })
 
-      // Refresh posts after creating
-      fetchPosts()
+      // Refresh posts after creating to show the new reply
+      await fetchPosts()
       return data
     } catch (error: any) {
       console.error('usePosts: Error in createPost:', error)

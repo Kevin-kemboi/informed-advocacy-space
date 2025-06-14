@@ -68,7 +68,7 @@ export function TwitterPostCard({ post, isReply = false }: TwitterPostCardProps)
     <motion.div
       initial={{ opacity: 0, y: 20 }}
       animate={{ opacity: 1, y: 0 }}
-      className={isReply ? "ml-12" : ""}
+      className={isReply ? "ml-12 border-l-2 border-gray-200 pl-4" : ""}
     >
       <Card className="border-gray-200 bg-white hover:bg-gray-50/50 transition-colors">
         <CardContent className="p-4">
@@ -141,50 +141,52 @@ export function TwitterPostCard({ post, isReply = false }: TwitterPostCardProps)
                 )}
               </div>
 
-              {/* Action Buttons */}
-              <div className="flex items-center justify-between max-w-md">
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  className="text-gray-500 hover:text-blue-600 hover:bg-blue-50"
-                  onClick={() => {
-                    console.log('TwitterPostCard: Reply button clicked')
-                    setShowReplyForm(!showReplyForm)
-                  }}
-                >
-                  <MessageCircle className="w-4 h-4 mr-2" />
-                  {post.replies?.length || post.reply_count || 0}
-                </Button>
-                
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  className="text-gray-500 hover:text-green-600 hover:bg-green-50"
-                >
-                  <Repeat2 className="w-4 h-4 mr-2" />
-                  {post.repost_count || 0}
-                </Button>
-                
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  className="text-gray-500 hover:text-red-600 hover:bg-red-50"
-                >
-                  <Heart className="w-4 h-4 mr-2" />
-                  {post.likes_count || 0}
-                </Button>
-                
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  className="text-gray-500 hover:text-blue-600 hover:bg-blue-50"
-                >
-                  <Share className="w-4 h-4" />
-                </Button>
-              </div>
+              {/* Action Buttons - Only show for main posts, not replies */}
+              {!isReply && (
+                <div className="flex items-center justify-between max-w-md">
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    className="text-gray-500 hover:text-blue-600 hover:bg-blue-50"
+                    onClick={() => {
+                      console.log('TwitterPostCard: Reply button clicked')
+                      setShowReplyForm(!showReplyForm)
+                    }}
+                  >
+                    <MessageCircle className="w-4 h-4 mr-2" />
+                    {post.replies?.length || post.reply_count || 0}
+                  </Button>
+                  
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    className="text-gray-500 hover:text-green-600 hover:bg-green-50"
+                  >
+                    <Repeat2 className="w-4 h-4 mr-2" />
+                    {post.repost_count || 0}
+                  </Button>
+                  
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    className="text-gray-500 hover:text-red-600 hover:bg-red-50"
+                  >
+                    <Heart className="w-4 h-4 mr-2" />
+                    {post.likes_count || 0}
+                  </Button>
+                  
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    className="text-gray-500 hover:text-blue-600 hover:bg-blue-50"
+                  >
+                    <Share className="w-4 h-4" />
+                  </Button>
+                </div>
+              )}
 
-              {/* Reply Form */}
-              {showReplyForm && user && profile && (
+              {/* Reply Form - Only show for main posts */}
+              {!isReply && showReplyForm && user && profile && (
                 <motion.div
                   initial={{ opacity: 0, height: 0 }}
                   animate={{ opacity: 1, height: 'auto' }}
@@ -238,8 +240,8 @@ export function TwitterPostCard({ post, isReply = false }: TwitterPostCardProps)
                 </motion.div>
               )}
 
-              {/* Replies */}
-              {post.replies && post.replies.length > 0 && (
+              {/* Replies - Only show for main posts */}
+              {!isReply && post.replies && post.replies.length > 0 && (
                 <div className="mt-4 space-y-4">
                   {post.replies.map((reply) => {
                     console.log('TwitterPostCard: Rendering reply:', reply.id)
