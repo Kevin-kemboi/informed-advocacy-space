@@ -1,3 +1,4 @@
+
 import { useState, useEffect, useRef } from 'react'
 import { supabase, Post } from '@/lib/supabase'
 import { useAuth } from '@/hooks/useAuth'
@@ -10,13 +11,14 @@ export function usePosts() {
   const { toast } = useToast()
   const channelRef = useRef<any>(null)
   const isSubscribedRef = useRef(false)
+  const fetchTimeoutRef = useRef<NodeJS.Timeout | null>(null)
 
   useEffect(() => {
     console.log('usePosts: Initializing with user:', user?.id)
     fetchPosts()
 
     // Clean up existing subscription
-    if (channelRef.current && !isSubscribedRef.current) {
+    if (channelRef.current) {
       try {
         supabase.removeChannel(channelRef.current)
       } catch (error) {
@@ -26,7 +28,7 @@ export function usePosts() {
       isSubscribedRef.current = false
     }
 
-    // Subscribe to real-time updates
+    // Subscribe to real-time updates with debouncing
     if (!channelRef.current && !isSubscribedRef.current) {
       channelRef.current = supabase
         .channel(`posts-realtime-${Date.now()}-${Math.random()}`)
@@ -36,7 +38,15 @@ export function usePosts() {
           table: 'posts'
         }, (payload) => {
           console.log('Posts table changed:', payload)
-          fetchPosts()
+          
+          // Debounce the fetch to avoid multiple rapid calls
+          if (fetchTimeoutRef.current) {
+            clearTimeout(fetchTimeoutRef.current)
+          }
+          
+          fetchTimeoutRef.current = setTimeout(() => {
+            fetchPosts()
+          }, 500) // Wait 500ms before fetching
         })
         .subscribe((status) => {
           console.log('Posts subscription status:', status)
@@ -48,6 +58,9 @@ export function usePosts() {
 
     return () => {
       console.log('Cleaning up posts subscription')
+      if (fetchTimeoutRef.current) {
+        clearTimeout(fetchTimeoutRef.current)
+      }
       if (channelRef.current) {
         try {
           supabase.removeChannel(channelRef.current)
@@ -125,7 +138,8 @@ export function usePosts() {
           console.log(`usePosts: Replies for post ${post.id}:`, repliesWithProfiles?.length || 0)
           return {
             ...post,
-            replies: repliesWithProfiles || []
+            replies: repliesWithProfiles || [],
+            reply_count: repliesWithProfiles?.length || 0
           }
         })
       )

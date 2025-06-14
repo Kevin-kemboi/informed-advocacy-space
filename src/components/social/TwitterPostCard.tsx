@@ -37,7 +37,7 @@ export function TwitterPostCard({ post, isReply = false }: TwitterPostCardProps)
     postId: post.id, 
     isReply, 
     author: post.profiles?.full_name,
-    repliesCount: post.replies?.length,
+    repliesCount: post.replies?.length || post.reply_count || 0,
     showReplyForm 
   })
 
@@ -153,7 +153,7 @@ export function TwitterPostCard({ post, isReply = false }: TwitterPostCardProps)
                   }}
                 >
                   <MessageCircle className="w-4 h-4 mr-2" />
-                  {post.reply_count || 0}
+                  {post.replies?.length || post.reply_count || 0}
                 </Button>
                 
                 <Button
