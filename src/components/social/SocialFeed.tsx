@@ -1,248 +1,116 @@
-
-import { useState, useEffect } from "react";
-import { Card, CardContent, CardHeader } from "@/components/ui/card";
-import { Button } from "@/components/ui/button";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { PostComposer } from "./PostComposer";
-import { PollComposer } from "./PollComposer";
-import { EnhancedPostCard } from "./EnhancedPostCard";
-import { PollCard } from "./PollCard";
-import { Plus, Filter, Loader2, RefreshCw } from "lucide-react";
-import { usePosts } from "@/hooks/usePosts";
-import { useSocialPolls } from "@/hooks/useSocialPolls";
-import { useAuth } from "@/hooks/useAuth";
-import { AnimatedList } from "@/components/ui/animated-list";
-import { GradientText } from "@/components/ui/gradient-text";
-import { TiltedCard } from "@/components/ui/tilted-card";
+import React from 'react'
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
+import { Skeleton } from '@/components/ui/skeleton'
+import { AuroraBackground } from '@/components/ui/aurora-background'
+import { AnimatedList } from '@/components/ui/animated-list'
+import { TwitterPostCard } from '@/components/social/TwitterPostCard'
+import { PostComposer } from '@/components/social/PostComposer'
+import { PollCard } from '@/components/social/PollCard'
+import { useEnhancedPosts } from '@/hooks/useEnhancedPosts'
+import { useSocialPolls } from '@/hooks/useSocialPolls'
+import { useAuth } from '@/hooks/useAuth'
 
 export function SocialFeed() {
-  const [showPostComposer, setShowPostComposer] = useState(false);
-  const [showPollComposer, setShowPollComposer] = useState(false);
-  const [feedFilter, setFeedFilter] = useState<'all' | 'posts' | 'polls'>('all');
-  
-  const { posts, loading: postsLoading, refetch: refetchPosts } = usePosts();
-  const { polls, loading: pollsLoading } = useSocialPolls();
-  const { profile, user, loading: authLoading } = useAuth();
+  const { posts, loading: postsLoading } = useEnhancedPosts()
+  const { polls, loading: pollsLoading } = useSocialPolls()
+  const { profile, loading: authLoading } = useAuth()
 
-  const canCreate = profile?.role === 'citizen';
-  const isLoading = postsLoading || pollsLoading || authLoading;
-  const [isRefreshing, setIsRefreshing] = useState(false);
+  const canCreate = profile && ['citizen', 'government_official'].includes(profile.role)
+  const isLoading = postsLoading || pollsLoading
 
-  const handleRefresh = async () => {
-    setIsRefreshing(true);
-    await refetchPosts();
-    setTimeout(() => setIsRefreshing(false), 1000);
-  };
-
-  console.log('SocialFeed: Rendering with data:', { 
-    posts: posts.length, 
-    polls: polls.length, 
-    isLoading, 
+  console.log('SocialFeed: Rendering with data:', {
+    posts: posts.length,
+    polls: polls.length,
+    isLoading,
     canCreate,
-    profile: profile,
+    profile: profile ? {
+      id: profile.id,
+      full_name: profile.full_name,
+      email: profile.email,
+      role: profile.role,
+      created_at: profile.created_at,
+      status: profile.status,
+      profile_pic_url: profile.profile_pic_url,
+      bio: profile.bio,
+      location: profile.location,
+      verified: profile.verified
+    } : null,
     authLoading
-  });
+  })
 
-  if (authLoading) {
-    return (
-      <div className="max-w-2xl mx-auto space-y-6">
-        <Card className="text-center py-12">
-          <CardContent className="flex flex-col items-center gap-4">
-            <Loader2 className="h-8 w-8 animate-spin text-blue-600" />
-            <p className="text-gray-600">Loading your profile...</p>
-          </CardContent>
+  const loadingSkeletons = (
+    <div className="space-y-6">
+      {[...Array(3)].map((_, i) => (
+        <Card key={i} className="p-6">
+          <div className="flex space-x-4">
+            <Skeleton className="h-12 w-12 rounded-full" />
+            <div className="space-y-2 flex-1">
+              <Skeleton className="h-4 w-[250px]" />
+              <Skeleton className="h-4 w-[200px]" />
+              <Skeleton className="h-20 w-full" />
+            </div>
+          </div>
         </Card>
-      </div>
-    );
-  }
+      ))}
+    </div>
+  )
 
-  if (!user) {
-    return (
-      <div className="max-w-2xl mx-auto space-y-6">
-        <Card className="text-center py-12">
-          <CardContent>
-            <p className="text-gray-600">Please sign in to access the community feed.</p>
-          </CardContent>
-        </Card>
-      </div>
-    );
-  }
+  // Combine and sort posts and polls by creation date
+  const feedItems = [
+    ...posts.map(post => ({ ...post, type: 'post' as const })),
+    ...polls.map(poll => ({ ...poll, type: 'poll' as const }))
+  ].sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime())
 
   return (
-    <div className="max-w-2xl mx-auto space-y-6">
-      {/* Enhanced Composer Section */}
-      <TiltedCard className="bg-gradient-to-r from-blue-50 to-purple-50 border-blue-200">
-        <CardHeader className="pb-4">
-          <div className="flex justify-between items-center mb-3">
-            <h2 className="text-xl font-semibold">
-              <GradientText>Community Feed</GradientText>
-            </h2>
-            <Button 
-              variant="ghost" 
-              size="sm"
-              onClick={handleRefresh}
-              disabled={isRefreshing || isLoading}
-              className="flex items-center gap-1"
-            >
-              <RefreshCw className={`h-4 w-4 ${isRefreshing ? 'animate-spin' : ''}`} />
-              Refresh
-            </Button>
+    <AuroraBackground className="min-h-screen">
+      <div className="container mx-auto px-4 py-8 max-w-2xl">
+        {canCreate && (
+          <div className="mb-8">
+            <PostComposer />
           </div>
-          {canCreate ? (
-            <div className="flex gap-3">
-              <Button 
-                onClick={() => setShowPostComposer(true)}
-                className="flex-1 bg-blue-600 hover:bg-blue-700 text-white"
-              >
-                <Plus className="h-4 w-4 mr-2" />
-                Share Your Voice
-              </Button>
-              <Button 
-                onClick={() => setShowPollComposer(true)}
-                variant="outline"
-                className="flex-1 border-purple-300 text-purple-700 hover:bg-purple-50"
-              >
-                <Plus className="h-4 w-4 mr-2" />
-                Create Poll
-              </Button>
-            </div>
-          ) : (
-            <div className="text-center p-4 bg-gray-100 rounded-lg">
+        )}
+
+        {isLoading ? (
+          <div className="space-y-6">
+            {[...Array(3)].map((_, i) => (
+              <Card key={i} className="p-6">
+                <div className="flex space-x-4">
+                  <Skeleton className="h-12 w-12 rounded-full" />
+                  <div className="space-y-2 flex-1">
+                    <Skeleton className="h-4 w-[250px]" />
+                    <Skeleton className="h-4 w-[200px]" />
+                    <Skeleton className="h-20 w-full" />
+                  </div>
+                </div>
+              </Card>
+            ))}
+          </div>
+        ) : feedItems.length === 0 ? (
+          <Card className="p-8 text-center">
+            <CardHeader>
+              <CardTitle>No posts yet</CardTitle>
+            </CardHeader>
+            <CardContent>
               <p className="text-gray-600">
-                {!profile ? 'Loading profile...' : 
-                 profile.role === 'government_official' ? 'Government officials can view and vote on content.' :
-                 profile.role === 'admin' ? 'Administrators can moderate content.' :
-                 'Only citizens can create posts and polls.'}
+                {canCreate 
+                  ? "Be the first to share something with your community!" 
+                  : "Check back later for community updates."
+                }
               </p>
-              {profile && profile.role !== 'citizen' && (
-                <p className="text-sm text-gray-500 mt-2">
-                  Your role: {profile.role?.replace('_', ' ')}
-                </p>
-              )}
-            </div>
-          )}
-        </CardHeader>
-      </TiltedCard>
-
-      {/* Filter Tabs */}
-      <Tabs value={feedFilter} onValueChange={(value) => setFeedFilter(value as any)}>
-        <TabsList className="grid w-full grid-cols-3 bg-gray-100">
-          <TabsTrigger value="all" className="data-[state=active]:bg-white">All</TabsTrigger>
-          <TabsTrigger value="posts" className="data-[state=active]:bg-white">Posts</TabsTrigger>
-          <TabsTrigger value="polls" className="data-[state=active]:bg-white">Polls</TabsTrigger>
-        </TabsList>
-
-        <TabsContent value="all" className="space-y-4">
-          {isLoading ? (
-            <Card className="text-center py-12">
-              <CardContent className="flex flex-col items-center gap-4">
-                <Loader2 className="h-8 w-8 animate-spin text-blue-600" />
-                <p className="text-gray-600">Loading community content...</p>
-              </CardContent>
-            </Card>
-          ) : posts.length === 0 && polls.length === 0 ? (
-            <Card className="text-center py-12 bg-gray-50">
-              <CardContent>
-                <div className="text-gray-500 mb-4">
-                  <Filter className="h-12 w-12 mx-auto mb-3 opacity-50" />
-                  <h3 className="text-lg font-medium">No posts yet</h3>
-                  <p className="text-sm">Be the first to share something with your community!</p>
-                </div>
-                {canCreate && (
-                  <Button onClick={() => setShowPostComposer(true)} className="mt-4">
-                    Create First Post
-                  </Button>
-                )}
-              </CardContent>
-            </Card>
-          ) : (
-            <AnimatedList staggerDelay={0.05}>
-              {[...posts, ...polls]
-                .sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime())
-                .map((item) => (
-                  'question' in item ? (
-                    <PollCard key={`poll-${item.id}`} poll={item} />
-                  ) : (
-                    <EnhancedPostCard key={`post-${item.id}`} post={item} />
-                  )
-                ))}
-            </AnimatedList>
-          )}
-        </TabsContent>
-
-        <TabsContent value="posts" className="space-y-4">
-          {isLoading ? (
-            <Card className="text-center py-12">
-              <CardContent className="flex flex-col items-center gap-4">
-                <Loader2 className="h-8 w-8 animate-spin text-blue-600" />
-                <p className="text-gray-600">Loading posts...</p>
-              </CardContent>
-            </Card>
-          ) : posts.length === 0 ? (
-            <Card className="text-center py-12 bg-gray-50">
-              <CardContent>
-                <div className="text-gray-500 mb-4">
-                  <h3 className="text-lg font-medium">No posts yet</h3>
-                  <p className="text-sm">Be the first to share a post!</p>
-                </div>
-                {canCreate && (
-                  <Button onClick={() => setShowPostComposer(true)} className="mt-4">
-                    Create First Post
-                  </Button>
-                )}
-              </CardContent>
-            </Card>
-          ) : (
-            <AnimatedList staggerDelay={0.05}>
-              {posts.map((post) => (
-                <EnhancedPostCard key={post.id} post={post} />
-              ))}
-            </AnimatedList>
-          )}
-        </TabsContent>
-
-        <TabsContent value="polls" className="space-y-4">
-          {isLoading ? (
-            <Card className="text-center py-12">
-              <CardContent className="flex flex-col items-center gap-4">
-                <Loader2 className="h-8 w-8 animate-spin text-blue-600" />
-                <p className="text-gray-600">Loading polls...</p>
-              </CardContent>
-            </Card>
-          ) : polls.length === 0 ? (
-            <Card className="text-center py-12 bg-gray-50">
-              <CardContent>
-                <div className="text-gray-500 mb-4">
-                  <h3 className="text-lg font-medium">No polls yet</h3>
-                  <p className="text-sm">Be the first to create a poll!</p>
-                </div>
-                {canCreate && (
-                  <Button onClick={() => setShowPollComposer(true)} className="mt-4">
-                    Create First Poll
-                  </Button>
-                )}
-              </CardContent>
-            </Card>
-          ) : (
-            <AnimatedList staggerDelay={0.05}>
-              {polls.map((poll) => (
-                <PollCard key={poll.id} poll={poll} />
-              ))}
-            </AnimatedList>
-          )}
-        </TabsContent>
-      </Tabs>
-
-      {/* Composers */}
-      <PostComposer 
-        isOpen={showPostComposer}
-        onClose={() => setShowPostComposer(false)}
-      />
-      
-      <PollComposer 
-        isOpen={showPollComposer}
-        onClose={() => setShowPollComposer(false)}
-      />
-    </div>
-  );
+            </CardContent>
+          </Card>
+        ) : (
+          <AnimatedList className="space-y-6">
+            {feedItems.map((item) => 
+              item.type === 'post' ? (
+                <TwitterPostCard key={item.id} post={item} />
+              ) : (
+                <PollCard key={item.id} poll={item} />
+              )
+            )}
+          </AnimatedList>
+        )}
+      </div>
+    </AuroraBackground>
+  )
 }

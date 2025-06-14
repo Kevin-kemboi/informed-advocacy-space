@@ -19,7 +19,7 @@ import {
 import { formatTimeAgo, getCategoryColor } from '@/lib/supabase'
 import { Post } from '@/lib/supabase'
 import { useAuth } from '@/hooks/useAuth'
-import { usePosts } from '@/hooks/usePosts'
+import { useEnhancedPosts } from '@/hooks/useEnhancedPosts'
 
 interface TwitterPostCardProps {
   post: Post
@@ -28,7 +28,7 @@ interface TwitterPostCardProps {
 
 export function TwitterPostCard({ post, isReply = false }: TwitterPostCardProps) {
   const { user, profile } = useAuth()
-  const { createPost } = usePosts()
+  const { createPost, likePost, repostPost, userLikes, userReposts } = useEnhancedPosts()
   const [showReplyForm, setShowReplyForm] = useState(false)
   const [replyContent, setReplyContent] = useState('')
   const [isSubmittingReply, setIsSubmittingReply] = useState(false)
@@ -64,6 +64,25 @@ export function TwitterPostCard({ post, isReply = false }: TwitterPostCardProps)
       setIsSubmittingReply(false)
     }
   }
+
+  const handleLike = async () => {
+    try {
+      await likePost(post.id)
+    } catch (error) {
+      console.error('TwitterPostCard: Error liking post:', error)
+    }
+  }
+
+  const handleRepost = async () => {
+    try {
+      await repostPost(post.id)
+    } catch (error) {
+      console.error('TwitterPostCard: Error reposting:', error)
+    }
+  }
+
+  const isLiked = userLikes.has(post.id)
+  const isReposted = userReposts.has(post.id)
 
   return (
     <motion.div
@@ -161,7 +180,10 @@ export function TwitterPostCard({ post, isReply = false }: TwitterPostCardProps)
                   <Button
                     variant="ghost"
                     size="sm"
-                    className="text-gray-500 hover:text-green-600 hover:bg-green-50"
+                    className={`text-gray-500 hover:text-green-600 hover:bg-green-50 ${
+                      isReposted ? 'text-green-600' : ''
+                    }`}
+                    onClick={handleRepost}
                   >
                     <Repeat2 className="w-4 h-4 mr-2" />
                     {post.repost_count || 0}
@@ -170,9 +192,12 @@ export function TwitterPostCard({ post, isReply = false }: TwitterPostCardProps)
                   <Button
                     variant="ghost"
                     size="sm"
-                    className="text-gray-500 hover:text-red-600 hover:bg-red-50"
+                    className={`text-gray-500 hover:text-red-600 hover:bg-red-50 ${
+                      isLiked ? 'text-red-600' : ''
+                    }`}
+                    onClick={handleLike}
                   >
-                    <Heart className="w-4 h-4 mr-2" />
+                    <Heart className={`w-4 h-4 mr-2 ${isLiked ? 'fill-current' : ''}`} />
                     {post.likes_count || 0}
                   </Button>
                   
