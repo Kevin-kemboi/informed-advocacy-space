@@ -1,499 +1,243 @@
-import { useState } from "react";
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Alert, AlertDescription } from "@/components/ui/alert";
-import { Badge } from "@/components/ui/badge";
-import { Shield, User, Crown, CheckCircle, AlertCircle } from "lucide-react";
-import { useAuth } from "@/hooks/useAuth";
+
+import { useState } from "react"
+import { Button } from "@/components/ui/button"
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
+import { Input } from "@/components/ui/input"
+import { Label } from "@/components/ui/label"
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
+import { X, Users, Shield, Crown, Mail, Lock, User } from "lucide-react"
+import { useAuth } from "@/hooks/useAuth"
+import { useToast } from "@/hooks/use-toast"
 
 interface AuthModalProps {
-  isOpen?: boolean;
-  onClose?: () => void;
+  onClose?: () => void
 }
 
-// Enhanced verification system with multiple codes per role
-const VERIFICATION_CODES = {
-  admin: ["ADMIN2024", "SUPER_ADMIN_2024", "CITY_ADMIN_KEY"],
-  government_official: ["GOVT2024", "OFFICIAL_ACCESS_2024", "MUNICIPAL_KEY_2024"]
-};
+export function AuthModal({ onClose }: AuthModalProps) {
+  const [isLoading, setIsLoading] = useState(false)
+  const [email, setEmail] = useState("")
+  const [password, setPassword] = useState("")
+  const [fullName, setFullName] = useState("")
+  const [role, setRole] = useState("citizen")
+  const { signIn, signUp } = useAuth()
+  const { toast } = useToast()
 
-export function AuthModal({ isOpen, onClose }: AuthModalProps) {
-  const [internalOpen, setInternalOpen] = useState(false);
-  const [email, setEmail] = useState("");
-  const [password, setPassword] = useState("");
-  const [fullName, setFullName] = useState("");
-  const [role, setRole] = useState<'citizen' | 'government_official' | 'admin'>("citizen");
-  const [verificationCode, setVerificationCode] = useState("");
-  const [loading, setLoading] = useState(false);
-  const [showVerification, setShowVerification] = useState(false);
-  const [verificationStatus, setVerificationStatus] = useState<'idle' | 'valid' | 'invalid'>('idle');
-  const { signIn, signUp } = useAuth();
-
-  const modalOpen = isOpen !== undefined ? isOpen : internalOpen;
-  const handleOpenChange = onClose !== undefined ? onClose : setInternalOpen;
-
-  const handleRoleChange = (newRole: 'citizen' | 'government_official' | 'admin') => {
-    setRole(newRole);
-    setShowVerification(newRole !== 'citizen');
-    setVerificationCode("");
-    setVerificationStatus('idle');
-  };
-
-  const validateVerificationCode = (selectedRole: string, code: string): boolean => {
-    if (selectedRole === 'citizen') return true;
-    const validCodes = VERIFICATION_CODES[selectedRole as keyof typeof VERIFICATION_CODES] || [];
-    return validCodes.includes(code);
-  };
-
-  const handleVerificationCodeChange = (code: string) => {
-    setVerificationCode(code);
-    if (code.length > 0 && role !== 'citizen') {
-      const isValid = validateVerificationCode(role, code);
-      setVerificationStatus(isValid ? 'valid' : 'invalid');
-    } else {
-      setVerificationStatus('idle');
+  const handleSignIn = async () => {
+    if (!email || !password) {
+      toast({
+        title: "Missing Information",
+        description: "Please fill in all fields",
+        variant: "destructive"
+      })
+      return
     }
-  };
 
-  const handleLogin = async () => {
-    if (!email || !password) return;
-    
-    setLoading(true);
+    setIsLoading(true)
     try {
-      await signIn(email, password);
-      handleOpenChange(false);
-      resetForm();
-    } catch (error) {
-      // Error is handled in useAuth hook
+      await signIn(email, password)
+      onClose?.()
+      toast({
+        title: "Welcome back!",
+        description: "You've successfully signed in."
+      })
+    } catch (error: any) {
+      toast({
+        title: "Sign In Failed",
+        description: error.message,
+        variant: "destructive"
+      })
     } finally {
-      setLoading(false);
+      setIsLoading(false)
     }
-  };
+  }
 
-  const handleRegister = async () => {
-    if (!email || !password || !fullName) return;
-    
-    if (showVerification && !validateVerificationCode(role, verificationCode)) {
-      return;
+  const handleSignUp = async () => {
+    if (!email || !password || !fullName) {
+      toast({
+        title: "Missing Information",
+        description: "Please fill in all fields",
+        variant: "destructive"
+      })
+      return
     }
-    
-    setLoading(true);
+
+    setIsLoading(true)
     try {
-      await signUp(email, password, fullName, role);
-      handleOpenChange(false);
-      resetForm();
-    } catch (error) {
-      // Error is handled in useAuth hook
+      await signUp(email, password, fullName, role)
+      onClose?.()
+      toast({
+        title: "Welcome to CivicConnect!",
+        description: "Your account has been created successfully."
+      })
+    } catch (error: any) {
+      toast({
+        title: "Sign Up Failed",
+        description: error.message,
+        variant: "destructive"
+      })
     } finally {
-      setLoading(false);
+      setIsLoading(false)
     }
-  };
-
-  const resetForm = () => {
-    setEmail("");
-    setPassword("");
-    setFullName("");
-    setRole("citizen");
-    setVerificationCode("");
-    setShowVerification(false);
-    setVerificationStatus('idle');
-  };
+  }
 
   const getRoleIcon = (roleType: string) => {
     switch (roleType) {
-      case 'admin': return <Crown className="h-4 w-4" />;
-      case 'government_official': return <Shield className="h-4 w-4" />;
-      default: return <User className="h-4 w-4" />;
+      case 'admin': return <Crown className="h-4 w-4" />
+      case 'government_official': return <Shield className="h-4 w-4" />
+      default: return <Users className="h-4 w-4" />
     }
-  };
-
-  const getRoleColor = (roleType: string) => {
-    switch (roleType) {
-      case 'admin': return 'bg-purple-100 text-purple-800 border-purple-200';
-      case 'government_official': return 'bg-blue-100 text-blue-800 border-blue-200';
-      default: return 'bg-green-100 text-green-800 border-green-200';
-    }
-  };
-
-  // If used without props, render as a trigger button
-  if (isOpen === undefined) {
-    return (
-      <Dialog open={modalOpen} onOpenChange={setInternalOpen}>
-        <DialogTrigger asChild>
-          <Button size="lg" className="bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700 text-white px-8 py-3 text-lg">
-            Get Started
-          </Button>
-        </DialogTrigger>
-        <DialogContent className="sm:max-w-md">
-          <DialogHeader>
-            <DialogTitle className="flex items-center gap-2">
-              <div className="w-8 h-8 bg-gradient-to-br from-blue-600 to-purple-600 rounded-lg flex items-center justify-center">
-                <Shield className="h-4 w-4 text-white" />
-              </div>
-              Join CivicConnect
-            </DialogTitle>
-          </DialogHeader>
-          
-          <Tabs defaultValue="login" className="w-full">
-            <TabsList className="grid w-full grid-cols-2">
-              <TabsTrigger value="login">Sign In</TabsTrigger>
-              <TabsTrigger value="register">Register</TabsTrigger>
-            </TabsList>
-            
-            <TabsContent value="login">
-              <Card>
-                <CardHeader>
-                  <CardTitle>Welcome Back</CardTitle>
-                  <CardDescription>
-                    Sign in to your CivicConnect account
-                  </CardDescription>
-                </CardHeader>
-                <CardContent className="space-y-4">
-                  <div>
-                    <Label htmlFor="email">Email</Label>
-                    <Input
-                      id="email"
-                      type="email"
-                      value={email}
-                      onChange={(e) => setEmail(e.target.value)}
-                      placeholder="your.email@example.com"
-                      disabled={loading}
-                    />
-                  </div>
-                  <div>
-                    <Label htmlFor="password">Password</Label>
-                    <Input
-                      id="password"
-                      type="password"
-                      value={password}
-                      onChange={(e) => setPassword(e.target.value)}
-                      disabled={loading}
-                    />
-                  </div>
-                  <Button onClick={handleLogin} className="w-full" disabled={loading || !email || !password}>
-                    {loading ? "Signing in..." : "Sign In"}
-                  </Button>
-                </CardContent>
-              </Card>
-            </TabsContent>
-            
-            <TabsContent value="register">
-              <Card>
-                <CardHeader>
-                  <CardTitle>Create Account</CardTitle>
-                  <CardDescription>
-                    Join the civic engagement platform
-                  </CardDescription>
-                </CardHeader>
-                <CardContent className="space-y-4">
-                  <div>
-                    <Label htmlFor="fullName">Full Name</Label>
-                    <Input
-                      id="fullName"
-                      value={fullName}
-                      onChange={(e) => setFullName(e.target.value)}
-                      placeholder="John Doe"
-                      disabled={loading}
-                    />
-                  </div>
-                  <div>
-                    <Label htmlFor="email">Email</Label>
-                    <Input
-                      id="email"
-                      type="email"
-                      value={email}
-                      onChange={(e) => setEmail(e.target.value)}
-                      placeholder="your.email@example.com"
-                      disabled={loading}
-                    />
-                  </div>
-                  <div>
-                    <Label htmlFor="password">Password</Label>
-                    <Input
-                      id="password"
-                      type="password"
-                      value={password}
-                      onChange={(e) => setPassword(e.target.value)}
-                      placeholder="Minimum 6 characters"
-                      disabled={loading}
-                    />
-                  </div>
-                  <div>
-                    <Label>Account Type</Label>
-                    <Select value={role} onValueChange={handleRoleChange} disabled={loading}>
-                      <SelectTrigger>
-                        <SelectValue placeholder="Select your role" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="citizen">
-                          <div className="flex items-center gap-2">
-                            <User className="h-4 w-4" />
-                            Citizen
-                          </div>
-                        </SelectItem>
-                        <SelectItem value="government_official">
-                          <div className="flex items-center gap-2">
-                            <Shield className="h-4 w-4" />
-                            Government Official
-                          </div>
-                        </SelectItem>
-                        <SelectItem value="admin">
-                          <div className="flex items-center gap-2">
-                            <Crown className="h-4 w-4" />
-                            Administrator
-                          </div>
-                        </SelectItem>
-                      </SelectContent>
-                    </Select>
-                    
-                    {role && (
-                      <div className="mt-2">
-                        <Badge className={`${getRoleColor(role)}`}>
-                          {getRoleIcon(role)}
-                          <span className="ml-1 capitalize">{role.replace('_', ' ')}</span>
-                        </Badge>
-                      </div>
-                    )}
-                  </div>
-                  
-                  {showVerification && (
-                    <div>
-                      <Label htmlFor="verificationCode">
-                        Access Code
-                        {verificationStatus === 'valid' && <CheckCircle className="inline h-4 w-4 ml-1 text-green-600" />}
-                        {verificationStatus === 'invalid' && <AlertCircle className="inline h-4 w-4 ml-1 text-red-600" />}
-                      </Label>
-                      <Input
-                        id="verificationCode"
-                        value={verificationCode}
-                        onChange={(e) => handleVerificationCodeChange(e.target.value)}
-                        placeholder="Enter your access code"
-                        disabled={loading}
-                        className={
-                          verificationStatus === 'valid' ? 'border-green-500' :
-                          verificationStatus === 'invalid' ? 'border-red-500' : ''
-                        }
-                      />
-                      <Alert className="mt-2">
-                        <AlertDescription>
-                          {role === 'admin' 
-                            ? "Administrator access requires a special access code. Contact your system administrator or use: ADMIN2024, SUPER_ADMIN_2024, or CITY_ADMIN_KEY"
-                            : "Government Official access requires verification. Contact your department administrator or use: GOVT2024, OFFICIAL_ACCESS_2024, or MUNICIPAL_KEY_2024"
-                          }
-                        </AlertDescription>
-                      </Alert>
-                    </div>
-                  )}
-                  
-                  <Button 
-                    onClick={handleRegister} 
-                    className="w-full" 
-                    disabled={
-                      loading || 
-                      !email || 
-                      !password || 
-                      !fullName ||
-                      (showVerification && verificationStatus !== 'valid')
-                    }
-                  >
-                    {loading ? "Creating account..." : "Create Account"}
-                  </Button>
-                </CardContent>
-              </Card>
-            </TabsContent>
-          </Tabs>
-        </DialogContent>
-      </Dialog>
-    );
   }
 
-  // If used with props, render as controlled modal
   return (
-    <Dialog open={modalOpen} onOpenChange={handleOpenChange}>
-      <DialogContent className="sm:max-w-md">
-        <DialogHeader>
-          <DialogTitle className="flex items-center gap-2">
-            <div className="w-8 h-8 bg-gradient-to-br from-blue-600 to-purple-600 rounded-lg flex items-center justify-center">
-              <Shield className="h-4 w-4 text-white" />
-            </div>
-            Join CivicConnect
-          </DialogTitle>
-        </DialogHeader>
-        
-        <Tabs defaultValue="login" className="w-full">
-          <TabsList className="grid w-full grid-cols-2">
-            <TabsTrigger value="login">Sign In</TabsTrigger>
-            <TabsTrigger value="register">Register</TabsTrigger>
-          </TabsList>
-          
-          <TabsContent value="login">
-            <Card>
-              <CardHeader>
-                <CardTitle>Welcome Back</CardTitle>
-                <CardDescription>
-                  Sign in to your CivicConnect account
-                </CardDescription>
-              </CardHeader>
-              <CardContent className="space-y-4">
-                <div>
-                  <Label htmlFor="email">Email</Label>
+    <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center p-4 z-50">
+      <Card className="w-full max-w-md bg-white/95 backdrop-blur-lg shadow-2xl border-0">
+        <CardHeader className="relative">
+          {onClose && (
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={onClose}
+              className="absolute right-2 top-2 h-8 w-8 p-0 hover:bg-gray-100"
+            >
+              <X className="h-4 w-4" />
+            </Button>
+          )}
+          <CardTitle className="text-2xl text-center bg-gradient-to-r from-blue-600 to-purple-600 bg-clip-text text-transparent">
+            Welcome to CivicConnect
+          </CardTitle>
+          <CardDescription className="text-center">
+            Join your community and make your voice heard
+          </CardDescription>
+        </CardHeader>
+
+        <CardContent>
+          <Tabs defaultValue="signin" className="space-y-4">
+            <TabsList className="grid w-full grid-cols-2">
+              <TabsTrigger value="signin">Sign In</TabsTrigger>
+              <TabsTrigger value="signup">Sign Up</TabsTrigger>
+            </TabsList>
+
+            <TabsContent value="signin" className="space-y-4">
+              <div className="space-y-2">
+                <Label htmlFor="signin-email">Email</Label>
+                <div className="relative">
+                  <Mail className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
                   <Input
-                    id="email"
+                    id="signin-email"
                     type="email"
+                    placeholder="Enter your email"
                     value={email}
                     onChange={(e) => setEmail(e.target.value)}
-                    placeholder="your.email@example.com"
-                    disabled={loading}
+                    className="pl-10"
                   />
                 </div>
-                <div>
-                  <Label htmlFor="password">Password</Label>
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="signin-password">Password</Label>
+                <div className="relative">
+                  <Lock className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
                   <Input
-                    id="password"
+                    id="signin-password"
                     type="password"
+                    placeholder="Enter your password"
                     value={password}
                     onChange={(e) => setPassword(e.target.value)}
-                    disabled={loading}
+                    className="pl-10"
                   />
                 </div>
-                <Button onClick={handleLogin} className="w-full" disabled={loading || !email || !password}>
-                  {loading ? "Signing in..." : "Sign In"}
-                </Button>
-              </CardContent>
-            </Card>
-          </TabsContent>
-          
-          <TabsContent value="register">
-            <Card>
-              <CardHeader>
-                <CardTitle>Create Account</CardTitle>
-                <CardDescription>
-                  Join the civic engagement platform
-                </CardDescription>
-              </CardHeader>
-              <CardContent className="space-y-4">
-                <div>
-                  <Label htmlFor="fullName">Full Name</Label>
+              </div>
+
+              <Button 
+                onClick={handleSignIn} 
+                disabled={isLoading}
+                className="w-full bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700"
+              >
+                {isLoading ? "Signing In..." : "Sign In"}
+              </Button>
+            </TabsContent>
+
+            <TabsContent value="signup" className="space-y-4">
+              <div className="space-y-2">
+                <Label htmlFor="signup-name">Full Name</Label>
+                <div className="relative">
+                  <User className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
                   <Input
-                    id="fullName"
+                    id="signup-name"
+                    type="text"
+                    placeholder="Enter your full name"
                     value={fullName}
                     onChange={(e) => setFullName(e.target.value)}
-                    placeholder="John Doe"
-                    disabled={loading}
+                    className="pl-10"
                   />
                 </div>
-                <div>
-                  <Label htmlFor="email">Email</Label>
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="signup-email">Email</Label>
+                <div className="relative">
+                  <Mail className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
                   <Input
-                    id="email"
+                    id="signup-email"
                     type="email"
+                    placeholder="Enter your email"
                     value={email}
                     onChange={(e) => setEmail(e.target.value)}
-                    placeholder="your.email@example.com"
-                    disabled={loading}
+                    className="pl-10"
                   />
                 </div>
-                <div>
-                  <Label htmlFor="password">Password</Label>
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="signup-password">Password</Label>
+                <div className="relative">
+                  <Lock className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
                   <Input
-                    id="password"
+                    id="signup-password"
                     type="password"
+                    placeholder="Create a password"
                     value={password}
                     onChange={(e) => setPassword(e.target.value)}
-                    placeholder="Minimum 6 characters"
-                    disabled={loading}
+                    className="pl-10"
                   />
                 </div>
-                <div>
-                  <Label>Account Type</Label>
-                  <Select value={role} onValueChange={handleRoleChange} disabled={loading}>
-                    <SelectTrigger>
-                      <SelectValue placeholder="Select your role" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="citizen">
-                        <div className="flex items-center gap-2">
-                          <User className="h-4 w-4" />
-                          Citizen
-                        </div>
-                      </SelectItem>
-                      <SelectItem value="government_official">
-                        <div className="flex items-center gap-2">
-                          <Shield className="h-4 w-4" />
-                          Government Official
-                        </div>
-                      </SelectItem>
-                      <SelectItem value="admin">
-                        <div className="flex items-center gap-2">
-                          <Crown className="h-4 w-4" />
-                          Administrator
-                        </div>
-                      </SelectItem>
-                    </SelectContent>
-                  </Select>
-                  
-                  {role && (
-                    <div className="mt-2">
-                      <Badge className={`${getRoleColor(role)}`}>
-                        {getRoleIcon(role)}
-                        <span className="ml-1 capitalize">{role.replace('_', ' ')}</span>
-                      </Badge>
-                    </div>
-                  )}
-                </div>
-                
-                {showVerification && (
-                  <div>
-                    <Label htmlFor="verificationCode">
-                      Access Code
-                      {verificationStatus === 'valid' && <CheckCircle className="inline h-4 w-4 ml-1 text-green-600" />}
-                      {verificationStatus === 'invalid' && <AlertCircle className="inline h-4 w-4 ml-1 text-red-600" />}
-                    </Label>
-                    <Input
-                      id="verificationCode"
-                      value={verificationCode}
-                      onChange={(e) => handleVerificationCodeChange(e.target.value)}
-                      placeholder="Enter your access code"
-                      disabled={loading}
-                      className={
-                        verificationStatus === 'valid' ? 'border-green-500' :
-                        verificationStatus === 'invalid' ? 'border-red-500' : ''
-                      }
-                    />
-                    <Alert className="mt-2">
-                      <AlertDescription>
-                        {role === 'admin' 
-                          ? "Administrator access requires a special access code. Contact your system administrator or use: ADMIN2024, SUPER_ADMIN_2024, or CITY_ADMIN_KEY"
-                          : "Government Official access requires verification. Contact your department administrator or use: GOVT2024, OFFICIAL_ACCESS_2024, or MUNICIPAL_KEY_2024"
-                        }
-                      </AlertDescription>
-                    </Alert>
-                  </div>
-                )}
-                
-                <Button 
-                  onClick={handleRegister} 
-                  className="w-full" 
-                  disabled={
-                    loading || 
-                    !email || 
-                    !password || 
-                    !fullName ||
-                    (showVerification && verificationStatus !== 'valid')
-                  }
-                >
-                  {loading ? "Creating account..." : "Create Account"}
-                </Button>
-              </CardContent>
-            </Card>
-          </TabsContent>
-        </Tabs>
-      </DialogContent>
-    </Dialog>
-  );
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="role">Role</Label>
+                <Select value={role} onValueChange={setRole}>
+                  <SelectTrigger>
+                    <SelectValue placeholder="Select your role" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="citizen">
+                      <div className="flex items-center gap-2">
+                        {getRoleIcon('citizen')}
+                        <span>Citizen</span>
+                      </div>
+                    </SelectItem>
+                    <SelectItem value="government_official">
+                      <div className="flex items-center gap-2">
+                        {getRoleIcon('government_official')}
+                        <span>Government Official</span>
+                      </div>
+                    </SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+
+              <Button 
+                onClick={handleSignUp} 
+                disabled={isLoading}
+                className="w-full bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700"
+              >
+                {isLoading ? "Creating Account..." : "Create Account"}
+              </Button>
+            </TabsContent>
+          </Tabs>
+        </CardContent>
+      </Card>
+    </div>
+  )
 }

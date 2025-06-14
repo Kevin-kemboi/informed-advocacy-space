@@ -4,6 +4,7 @@ import { CitizenDashboard } from "@/components/dashboard/CitizenDashboard"
 import { OfficialDashboard } from "@/components/dashboard/OfficialDashboard"
 import { AdminDashboard } from "@/components/dashboard/AdminDashboard"
 import { AuthModal } from "@/components/auth/AuthModal"
+import { LandingPage } from "@/components/landing/LandingPage"
 import { Card, CardContent } from "@/components/ui/card"
 import { Loader2 } from "lucide-react"
 
@@ -32,8 +33,8 @@ export default function Index() {
   }
 
   if (!user || !profile) {
-    console.log('Index: No user or profile, showing auth modal', { user: !!user, profile: !!profile })
-    return <AuthModal />
+    console.log('Index: No user or profile, showing landing page', { user: !!user, profile: !!profile })
+    return <LandingPage />
   }
 
   console.log('Index: Rendering dashboard for role:', profile.role)
