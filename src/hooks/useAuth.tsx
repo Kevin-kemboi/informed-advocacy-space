@@ -1,3 +1,4 @@
+
 import { useEffect, useState, createContext, useContext, ReactNode } from 'react'
 import { supabase, getRoleFromEmail, validateEmailDomain } from '@/lib/supabase'
 import { User } from '@supabase/supabase-js'
@@ -8,6 +9,10 @@ interface Profile {
   full_name: string
   email: string
   role: 'citizen' | 'government_official' | 'admin'
+  profile_pic_url?: string
+  verified?: boolean
+  bio?: string
+  location?: string
   created_at: string
 }
 

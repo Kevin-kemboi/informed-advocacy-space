@@ -116,7 +116,7 @@ export function TwitterPostComposer({
                 full_name: profile.full_name || 'User',
                 role: profile.role || 'citizen',
                 profile_pic_url: profile.profile_pic_url,
-                verified: profile.verified
+                verified: profile.verified || false
               }}
               size="md"
             />
