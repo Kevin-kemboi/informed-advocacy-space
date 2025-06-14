@@ -1,3 +1,4 @@
+
 import { useEffect, useState, createContext, useContext, ReactNode } from 'react'
 import { supabase, getRoleFromEmail, validateEmailDomain } from '@/lib/supabase'
 import { User } from '@supabase/supabase-js'
@@ -37,16 +38,24 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     
     // Get initial session
     supabase.auth.getSession().then(({ data: { session }, error }) => {
+      console.log('Auth Provider: Initial session check:', { 
+        sessionExists: !!session, 
+        userId: session?.user?.id,
+        error 
+      })
+      
       if (error) {
         console.error('Auth Provider: Error getting session:', error)
         setLoading(false)
         return
       }
-      console.log('Auth Provider: Initial session:', session?.user?.id)
+      
       setUser(session?.user ?? null)
       if (session?.user) {
+        console.log('Auth Provider: Found existing session, fetching profile...')
         fetchProfile(session.user.id)
       } else {
+        console.log('Auth Provider: No existing session')
         setLoading(false)
       }
     }).catch((error) => {
@@ -57,12 +66,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     // Listen for auth changes
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
       async (event, session) => {
-        console.log('Auth state changed:', event, session?.user?.id)
+        console.log('Auth state changed:', event, 'User ID:', session?.user?.id)
         setUser(session?.user ?? null)
         
         if (session?.user) {
+          console.log('Auth: User signed in, fetching profile...')
           await fetchProfile(session.user.id)
         } else {
+          console.log('Auth: User signed out')
           setProfile(null)
           setLoading(false)
         }
@@ -79,7 +90,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     console.log('Auth: Starting fetchProfile for user:', userId)
     
     try {
-      console.log('Auth: Fetching profile from database...')
+      console.log('Auth: Querying profiles table...')
 
       const { data, error } = await supabase
         .from('profiles')
@@ -87,13 +98,17 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         .eq('id', userId)
         .maybeSingle()
 
-      console.log('Auth: Profile query result:', { data, error, userId })
+      console.log('Auth: Profile query result:', { 
+        data, 
+        error, 
+        userId,
+        hasData: !!data,
+        dataKeys: data ? Object.keys(data) : []
+      })
 
       if (error) {
         console.error('Auth: Database error fetching profile:', error)
-        
-        // Try to create profile if it doesn't exist
-        console.log('Auth: Profile not found, attempting to create...')
+        console.log('Auth: Attempting to create profile due to error...')
         await createProfile(userId)
         return
       }
@@ -102,12 +117,17 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         console.log('Auth: No profile found, creating new profile...')
         await createProfile(userId)
       } else {
-        console.log('Auth: Profile fetched successfully:', data)
+        console.log('Auth: Profile fetched successfully:', {
+          id: data.id,
+          full_name: data.full_name,
+          email: data.email,
+          role: data.role
+        })
         setProfile(data)
         setLoading(false)
       }
     } catch (error: any) {
-      console.error('Auth: Error in fetchProfile:', error)
+      console.error('Auth: Critical error in fetchProfile:', error)
       
       toast({
         title: "Profile Error",
@@ -115,8 +135,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         variant: "destructive",
       })
       
-      setProfile(null)
-      setLoading(false)
+      // Still try to create profile
+      console.log('Auth: Attempting to create profile after critical error...')
+      await createProfile(userId)
     }
   }
 
@@ -126,26 +147,29 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       
       // Get user data for creating profile
       const { data: userData, error: userError } = await supabase.auth.getUser()
-      console.log('Auth: User data for profile creation:', { userData: userData?.user?.email, userError })
+      console.log('Auth: User data for profile creation:', { 
+        email: userData?.user?.email, 
+        userError,
+        metadata: userData?.user?.user_metadata 
+      })
       
-      if (userError) {
-        console.error('Auth: Error getting user data:', userError)
-        throw userError
-      }
-
-      if (!userData.user) {
-        console.error('Auth: No user data available for profile creation')
-        throw new Error('No user data available')
+      if (userError || !userData.user) {
+        console.error('Auth: Cannot create profile - no user data:', userError)
+        setLoading(false)
+        return
       }
 
       const profileData = {
         id: userId,
-        full_name: userData.user.user_metadata?.full_name || userData.user.email?.split('@')[0] || 'User',
+        full_name: userData.user.user_metadata?.full_name || 
+                   userData.user.user_metadata?.name || 
+                   userData.user.email?.split('@')[0] || 
+                   'User',
         email: userData.user.email || '',
-        role: 'citizen' as const
+        role: (userData.user.user_metadata?.role as 'citizen' | 'government_official' | 'admin') || 'citizen'
       }
 
-      console.log('Auth: Creating new profile with data:', profileData)
+      console.log('Auth: Creating profile with data:', profileData)
 
       const { data: newProfile, error: createError } = await supabase
         .from('profiles')
@@ -157,16 +181,21 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       
       if (createError) {
         console.error('Auth: Error creating profile:', createError)
-        throw createError
+        // Don't throw - set loading to false so app doesn't hang
+        setLoading(false)
+        toast({
+          title: "Profile Creation Error",
+          description: `Failed to create profile: ${createError.message}`,
+          variant: "destructive",
+        })
+        return
       }
 
       console.log('Auth: Profile created successfully:', newProfile)
       setProfile(newProfile)
       setLoading(false)
     } catch (error: any) {
-      console.error('Auth: Error creating profile:', error)
-      
-      // Even if profile creation fails, set loading to false so app doesn't hang
+      console.error('Auth: Critical error creating profile:', error)
       setLoading(false)
       
       toast({
@@ -268,7 +297,16 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     signOut,
   }
 
-  console.log('Auth Provider: Current state:', { user: user?.id, profile: profile?.full_name, loading })
+  console.log('Auth Provider: Current state:', { 
+    user: user?.id, 
+    profile: profile ? {
+      id: profile.id,
+      full_name: profile.full_name,
+      email: profile.email,
+      role: profile.role
+    } : null, 
+    loading 
+  })
 
   return (
     <AuthContext.Provider value={value}>

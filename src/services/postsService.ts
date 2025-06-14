@@ -8,6 +8,7 @@ export class PostsService {
   static async fetchPostsWithProfiles() {
     // Prevent multiple simultaneous fetches
     if (this.isFetching) {
+      console.log('PostsService: Already fetching, skipping...')
       return null
     }
 
@@ -16,18 +17,35 @@ export class PostsService {
     try {
       console.log('PostsService: Starting to fetch posts with profiles...')
       
-      // First, try to get posts with a simpler query to debug
+      // Debug: Check if we can access the tables
+      const { data: tableCheck, error: tableError } = await supabase
+        .from('posts')
+        .select('count', { count: 'exact', head: true })
+
+      console.log('PostsService: Table access check:', { 
+        count: tableCheck, 
+        error: tableError 
+      })
+
+      if (tableError) {
+        console.error('PostsService: Cannot access posts table:', tableError)
+        return []
+      }
+
+      // First, get posts with a basic query
+      console.log('PostsService: Fetching basic posts...')
       const { data: postsData, error: postsError } = await supabase
         .from('posts')
         .select('*')
         .is('parent_id', null)
         .eq('status', 'active')
         .order('created_at', { ascending: false })
+        .limit(20)
 
-      console.log('PostsService: Simple posts query result:', { 
-        data: postsData, 
+      console.log('PostsService: Basic posts query result:', { 
+        data: postsData?.length, 
         error: postsError,
-        count: postsData?.length 
+        firstPost: postsData?.[0]
       })
 
       if (postsError) {
@@ -37,52 +55,69 @@ export class PostsService {
 
       if (!postsData || postsData.length === 0) {
         console.log('PostsService: No posts found in database')
+        
+        // Debug: Check total count of posts
+        const { count } = await supabase
+          .from('posts')
+          .select('*', { count: 'exact', head: true })
+        
+        console.log('PostsService: Total posts in database:', count)
         return []
       }
 
       console.log('PostsService: Found posts, now fetching profiles...')
       
-      // Manually fetch profiles for each post
-      const postsWithProfiles = await Promise.all(
-        postsData.map(async (post) => {
-          console.log('PostsService: Fetching profile for post:', post.id, 'user_id:', post.user_id)
-          
-          const { data: profile, error: profileError } = await supabase
-            .from('profiles')
-            .select('id, full_name, email, role, profile_pic_url, verified')
-            .eq('id', post.user_id)
-            .maybeSingle()
-          
-          if (profileError) {
-            console.error('PostsService: Error fetching profile for user:', post.user_id, profileError)
-          }
-          
-          console.log('PostsService: Profile result for user:', post.user_id, profile)
-          
-          return {
-            ...post,
-            profiles: profile || {
-              id: post.user_id,
-              full_name: 'Unknown User',
-              email: '',
-              role: 'citizen',
-              verified: false
-            }
-          }
-        })
-      )
+      // Get unique user IDs
+      const userIds = [...new Set(postsData.map(post => post.user_id))]
+      console.log('PostsService: Fetching profiles for users:', userIds)
 
-      // Get all main post IDs for batch reply fetching
-      const postIds = postsData.map(post => post.id)
-      
-      if (postIds.length === 0) {
-        console.log('PostsService: No main posts found')
-        return []
+      // Batch fetch profiles
+      const { data: profilesData, error: profilesError } = await supabase
+        .from('profiles')
+        .select('id, full_name, email, role, profile_pic_url, verified')
+        .in('id', userIds)
+
+      console.log('PostsService: Profiles query result:', { 
+        profilesCount: profilesData?.length, 
+        error: profilesError,
+        profiles: profilesData
+      })
+
+      // Create a map of profiles for quick lookup
+      const profilesMap = new Map()
+      if (profilesData) {
+        profilesData.forEach(profile => {
+          profilesMap.set(profile.id, profile)
+        })
       }
-      
+
+      // Manually attach profiles to posts
+      const postsWithProfiles = postsData.map(post => {
+        const profile = profilesMap.get(post.user_id) || {
+          id: post.user_id,
+          full_name: 'Unknown User',
+          email: '',
+          role: 'citizen',
+          verified: false
+        }
+        
+        console.log('PostsService: Attaching profile to post:', {
+          postId: post.id,
+          userId: post.user_id,
+          profileFound: !!profilesMap.get(post.user_id),
+          profileName: profile.full_name
+        })
+        
+        return {
+          ...post,
+          profiles: profile
+        }
+      })
+
+      // Fetch replies
+      const postIds = postsData.map(post => post.id)
       console.log('PostsService: Fetching replies for posts:', postIds)
       
-      // Fetch replies
       const { data: repliesData, error: repliesError } = await supabase
         .from('posts')
         .select('*')
@@ -91,36 +126,25 @@ export class PostsService {
         .order('created_at', { ascending: true })
 
       console.log('PostsService: Replies query result:', { 
-        data: repliesData, 
-        error: repliesError,
-        count: repliesData?.length 
+        repliesCount: repliesData?.length, 
+        error: repliesError 
       })
 
-      if (repliesError) {
-        console.error('PostsService: Error fetching replies:', repliesError)
-      }
-
-      // Fetch profiles for replies
-      const repliesWithProfiles = await Promise.all(
-        (repliesData || []).map(async (reply) => {
-          const { data: profile } = await supabase
-            .from('profiles')
-            .select('id, full_name, email, role, profile_pic_url, verified')
-            .eq('id', reply.user_id)
-            .maybeSingle()
-          
-          return {
-            ...reply,
-            profiles: profile || {
-              id: reply.user_id,
-              full_name: 'Unknown User',
-              email: '',
-              role: 'citizen',
-              verified: false
-            }
-          }
-        })
-      )
+      // Attach profiles to replies
+      const repliesWithProfiles = (repliesData || []).map(reply => {
+        const profile = profilesMap.get(reply.user_id) || {
+          id: reply.user_id,
+          full_name: 'Unknown User',
+          email: '',
+          role: 'citizen',
+          verified: false
+        }
+        
+        return {
+          ...reply,
+          profiles: profile
+        }
+      })
 
       // Group replies by parent_id
       const repliesByParent = repliesWithProfiles.reduce((acc, reply) => {
@@ -138,8 +162,15 @@ export class PostsService {
         reply_count: (repliesByParent[post.id] || []).length
       }))
 
-      console.log('PostsService: Final posts with replies:', postsWithReplies.length)
-      console.log('PostsService: Sample post:', postsWithReplies[0])
+      console.log('PostsService: Final result:', {
+        postsCount: postsWithReplies.length,
+        firstPostWithProfile: postsWithReplies[0] ? {
+          id: postsWithReplies[0].id,
+          content: postsWithReplies[0].content?.substring(0, 50),
+          authorName: postsWithReplies[0].profiles?.full_name,
+          repliesCount: postsWithReplies[0].replies?.length
+        } : null
+      })
       
       return postsWithReplies
     } catch (error) {
