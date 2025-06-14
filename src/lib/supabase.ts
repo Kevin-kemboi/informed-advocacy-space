@@ -1,10 +1,16 @@
-
 import { createClient } from '@supabase/supabase-js'
 
 const supabaseUrl = "https://mgjvxhvlvscckzeucwcn.supabase.co"
 const supabaseAnonKey = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im1nanZ4aHZsdnNjY2t6ZXVjd2NuIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NDk1MDA0NDgsImV4cCI6MjA2NTA3NjQ0OH0.b3hmwUJTRT48JIo5Pg2hRgvR9V4jOTKto3iiYrfdoUg"
 
-export const supabase = createClient(supabaseUrl, supabaseAnonKey)
+export const supabase = createClient(supabaseUrl, supabaseAnonKey, {
+  auth: {
+    storage: window.localStorage,
+    persistSession: true,
+    autoRefreshToken: true,
+    detectSessionInUrl: true
+  }
+})
 
 // Enhanced Database types
 export interface User {

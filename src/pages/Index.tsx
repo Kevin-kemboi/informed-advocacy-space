@@ -17,7 +17,6 @@ export default function Index() {
     loading 
   })
 
-  // Show loading while auth is still loading
   if (loading) {
     console.log('Index: Auth loading, showing spinner')
     return (
@@ -32,13 +31,11 @@ export default function Index() {
     )
   }
 
-  // Show auth modal if no user or profile
   if (!user || !profile) {
     console.log('Index: No user or profile, showing auth modal', { user: !!user, profile: !!profile })
     return <AuthModal />
   }
 
-  // Render appropriate dashboard based on user role
   console.log('Index: Rendering dashboard for role:', profile.role)
   
   switch (profile.role) {

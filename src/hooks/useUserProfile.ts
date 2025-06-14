@@ -17,7 +17,7 @@ export interface Profile {
 
 interface UseUserProfileProps {
   user: User | null;
-  onAuthStateChangeActive: boolean; // To trigger profile fetch after auth state settles
+  onAuthStateChangeActive: boolean;
 }
 
 export interface UserProfileHook {
@@ -98,7 +98,7 @@ export function useUserProfile({ user, onAuthStateChangeActive }: UseUserProfile
       }
       return profileSet;
     }
-  }, []); // Dependencies: supabase, getRoleFromEmail (imports)
+  }, []);
 
   const fetchProfile = useCallback(async (userId: string, currentUser?: User | null) => {
     if (!isMountedRef.current) {
@@ -124,12 +124,12 @@ export function useUserProfile({ user, onAuthStateChangeActive }: UseUserProfile
 
       if (data) {
         if (isMountedRef.current) setProfile(data);
-      } else if (currentUser) { // Only attempt create if currentUser details are available
+      } else if (currentUser) {
         console.log(`useUserProfile: fetchProfile (${userId}) - No profile in DB. Attempting to CREATE.`);
         await createProfile(userId, currentUser);
       } else {
         console.log(`useUserProfile: fetchProfile (${userId}) - No profile in DB and no currentUser to create one.`);
-         if (isMountedRef.current) setProfile(null); // Ensure profile is null if not found and cannot be created
+         if (isMountedRef.current) setProfile(null);
       }
     } catch (error: any) {
       console.error(`useUserProfile: fetchProfile (${userId}) - CRITICAL CATCH_BLOCK error: ${error.message}.`);
@@ -144,11 +144,9 @@ export function useUserProfile({ user, onAuthStateChangeActive }: UseUserProfile
       if (fetchProfileInProgressRef.current === userId) fetchProfileInProgressRef.current = null;
       console.log(`useUserProfile: fetchProfile (${userId}) - EXITED.`);
     }
-  }, [createProfile]); // Dependency: createProfile
+  }, [createProfile]);
 
   useEffect(() => {
-    // This effect now triggers profile fetching based on user changes from useAuthSession
-    // and when onAuthStateChangeActive becomes true (signifying auth state has settled)
     if (user?.id && onAuthStateChangeActive) {
       console.log(`useUserProfile: User detected (${user.id}) and auth state active. Fetching profile.`);
       fetchProfile(user.id, user);
@@ -160,13 +158,11 @@ export function useUserProfile({ user, onAuthStateChangeActive }: UseUserProfile
          if (fetchProfileInProgressRef.current) fetchProfileInProgressRef.current = null;
       }
     } else if (!user && !onAuthStateChangeActive && profile !== null) {
-      // Initial state before onAuthStateChange has run, if there's somehow a stale profile
       if (isMountedRef.current) {
         setProfile(null);
       }
     }
   }, [user, fetchProfile, onAuthStateChangeActive]);
-
 
   return { profile, loadingProfile, fetchProfile, createProfile };
 }
