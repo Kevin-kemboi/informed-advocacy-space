@@ -18,10 +18,11 @@ export function useRealtimeSubscriptions({
   mounted 
 }: UseRealtimeSubscriptionsProps) {
   const channelRef = useRef<any>(null)
+  const isSubscribingRef = useRef(false)
   const isSubscribedRef = useRef(false)
 
   const cleanupSubscription = () => {
-    if (channelRef.current && isSubscribedRef.current) {
+    if (channelRef.current) {
       console.log('useRealtimeSubscriptions: Cleaning up subscription')
       try {
         supabase.removeChannel(channelRef.current)
@@ -29,18 +30,22 @@ export function useRealtimeSubscriptions({
         console.log('useRealtimeSubscriptions: Error cleaning up channel:', error)
       }
       channelRef.current = null
-      isSubscribedRef.current = false
     }
+    isSubscribingRef.current = false
+    isSubscribedRef.current = false
   }
 
   const setupRealtimeSubscription = () => {
-    // Prevent multiple subscriptions
-    if (isSubscribedRef.current || !user || !mounted) {
-      console.log('useRealtimeSubscriptions: Subscription already active or user/mounted not ready, skipping')
+    // Prevent multiple subscriptions - check both subscribing and subscribed states
+    if (isSubscribingRef.current || isSubscribedRef.current || !user || !mounted) {
+      console.log('useRealtimeSubscriptions: Subscription already in progress or active, skipping')
       return
     }
 
     try {
+      // Set subscribing flag immediately to prevent race conditions
+      isSubscribingRef.current = true
+      
       const channelName = `civic-connect-${user.id}`
       console.log('useRealtimeSubscriptions: Setting up unified subscription:', channelName)
       
@@ -92,28 +97,29 @@ export function useRealtimeSubscriptions({
           }
         })
 
-      // Subscribe only once
-      if (!isSubscribedRef.current) {
-        channelRef.current.subscribe((status) => {
-          console.log('useRealtimeSubscriptions: Subscription status:', status)
-          if (status === 'SUBSCRIBED') {
-            isSubscribedRef.current = true
-          } else if (status === 'CHANNEL_ERROR' || status === 'TIMED_OUT' || status === 'CLOSED') {
-            console.error('useRealtimeSubscriptions: Subscription failed with status:', status)
-            isSubscribedRef.current = false
-            channelRef.current = null
-          }
-        })
-      }
+      // Subscribe to the channel
+      channelRef.current.subscribe((status) => {
+        console.log('useRealtimeSubscriptions: Subscription status:', status)
+        if (status === 'SUBSCRIBED') {
+          isSubscribedRef.current = true
+          isSubscribingRef.current = false
+        } else if (status === 'CHANNEL_ERROR' || status === 'TIMED_OUT' || status === 'CLOSED') {
+          console.error('useRealtimeSubscriptions: Subscription failed with status:', status)
+          isSubscribedRef.current = false
+          isSubscribingRef.current = false
+          channelRef.current = null
+        }
+      })
     } catch (error) {
       console.error('useRealtimeSubscriptions: Error setting up subscription:', error)
       isSubscribedRef.current = false
+      isSubscribingRef.current = false
       channelRef.current = null
     }
   }
 
   useEffect(() => {
-    if (user && mounted && !isSubscribedRef.current) {
+    if (user && mounted && !isSubscribingRef.current && !isSubscribedRef.current) {
       setupRealtimeSubscription()
     }
 
