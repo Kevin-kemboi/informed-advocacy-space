@@ -81,13 +81,31 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     try {
       console.log('Auth: Attempting to fetch profile from database...')
       
+      // Test basic Supabase connection first
+      console.log('Auth: Testing Supabase connection...')
+      const { data: testData, error: testError } = await supabase
+        .from('profiles')
+        .select('count')
+        .limit(1)
+      
+      console.log('Auth: Connection test result:', { testData, testError })
+      
+      if (testError) {
+        console.error('Auth: Supabase connection failed:', testError)
+        throw new Error(`Database connection failed: ${testError.message}`)
+      }
+
+      // Now try to fetch the specific profile
+      console.log('Auth: Fetching profile for user ID:', userId)
       const { data, error } = await supabase
         .from('profiles')
         .select('*')
         .eq('id', userId)
         .maybeSingle()
 
-      console.log('Auth: Profile query result:', { data, error })
+      console.log('Auth: Profile query completed')
+      console.log('Auth: Query result - data:', data)
+      console.log('Auth: Query result - error:', error)
 
       if (error) {
         console.error('Auth: Database error fetching profile:', error)
@@ -98,8 +116,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         console.log('Auth: No profile found, creating new profile...')
         
         // Get user data for creating profile
+        console.log('Auth: Getting user data for profile creation...')
         const { data: userData, error: userError } = await supabase.auth.getUser()
-        console.log('Auth: Current user data:', { userData: userData?.user?.email, userError })
+        console.log('Auth: User data result:', { userData: userData?.user?.email, userError })
         
         if (userError) {
           console.error('Auth: Error getting user data:', userError)
@@ -111,20 +130,18 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           throw new Error('No user data available')
         }
 
-        console.log('Auth: Creating new profile with data:', {
+        const profileData = {
           id: userId,
-          email: userData.user.email,
-          full_name: userData.user.user_metadata?.full_name || userData.user.email?.split('@')[0] || 'User'
-        })
+          full_name: userData.user.user_metadata?.full_name || userData.user.email?.split('@')[0] || 'User',
+          email: userData.user.email || '',
+          role: 'citizen' as const
+        }
+
+        console.log('Auth: Creating new profile with data:', profileData)
 
         const { data: newProfile, error: createError } = await supabase
           .from('profiles')
-          .insert({
-            id: userId,
-            full_name: userData.user.user_metadata?.full_name || userData.user.email?.split('@')[0] || 'User',
-            email: userData.user.email || '',
-            role: 'citizen'
-          })
+          .insert(profileData)
           .select()
           .single()
         
@@ -148,6 +165,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       }
     } catch (error: any) {
       console.error('Auth: Critical error in fetchProfile:', error)
+      console.error('Auth: Error stack:', error.stack)
       toast({
         title: "Profile Error",
         description: `Failed to load profile: ${error.message || 'Unknown error'}`,
