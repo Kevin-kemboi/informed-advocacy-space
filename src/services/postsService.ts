@@ -21,7 +21,7 @@ export class PostsService {
         .from('posts')
         .select(`
           *,
-          profiles!posts_user_id_profiles_fkey (
+          profiles!posts_user_id_fkey (
             id,
             full_name,
             email,
@@ -54,7 +54,7 @@ export class PostsService {
         .from('posts')
         .select(`
           *,
-          profiles!posts_user_id_profiles_fkey (
+          profiles!posts_user_id_fkey (
             id,
             full_name,
             email,
