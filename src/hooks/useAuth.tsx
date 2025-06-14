@@ -79,33 +79,16 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     console.log('Auth: Starting fetchProfile for user:', userId)
     
     try {
-      console.log('Auth: Attempting to fetch profile from database...')
-      
-      // Test basic Supabase connection first
-      console.log('Auth: Testing Supabase connection...')
-      const { data: testData, error: testError } = await supabase
-        .from('profiles')
-        .select('count')
-        .limit(1)
-      
-      console.log('Auth: Connection test result:', { testData, testError })
-      
-      if (testError) {
-        console.error('Auth: Supabase connection failed:', testError)
-        throw new Error(`Database connection failed: ${testError.message}`)
-      }
+      console.log('Auth: Fetching profile from database...')
 
-      // Now try to fetch the specific profile
-      console.log('Auth: Fetching profile for user ID:', userId)
+      // Directly fetch the profile without connection test
       const { data, error } = await supabase
         .from('profiles')
         .select('*')
         .eq('id', userId)
         .maybeSingle()
 
-      console.log('Auth: Profile query completed')
-      console.log('Auth: Query result - data:', data)
-      console.log('Auth: Query result - error:', error)
+      console.log('Auth: Profile query result:', { data, error })
 
       if (error) {
         console.error('Auth: Database error fetching profile:', error)
@@ -116,9 +99,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         console.log('Auth: No profile found, creating new profile...')
         
         // Get user data for creating profile
-        console.log('Auth: Getting user data for profile creation...')
         const { data: userData, error: userError } = await supabase.auth.getUser()
-        console.log('Auth: User data result:', { userData: userData?.user?.email, userError })
+        console.log('Auth: User data for profile creation:', { userData: userData?.user?.email, userError })
         
         if (userError) {
           console.error('Auth: Error getting user data:', userError)
@@ -165,7 +147,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       }
     } catch (error: any) {
       console.error('Auth: Critical error in fetchProfile:', error)
-      console.error('Auth: Error stack:', error.stack)
       toast({
         title: "Profile Error",
         description: `Failed to load profile: ${error.message || 'Unknown error'}`,
