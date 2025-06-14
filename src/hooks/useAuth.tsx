@@ -1,4 +1,3 @@
-
 import { useEffect, useState, createContext, useContext, ReactNode } from 'react'
 import { supabase, getRoleFromEmail, validateEmailDomain } from '@/lib/supabase'
 import { User } from '@supabase/supabase-js'
@@ -50,11 +49,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           .eq('id', userId)
           .maybeSingle()
 
-        console.log('Auth: Profile query result:', { data, error })
+        console.log('Auth: Profile query completed:', { data, error })
 
         if (error) {
           console.error('Auth: Error fetching profile:', error)
-          // Create profile if it doesn't exist
+          // Don't throw, just create a default profile
           await createProfile(userId)
           return
         }
@@ -71,6 +70,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         }
       } catch (error: any) {
         console.error('Auth: Error in fetchProfile:', error)
+        // Always ensure loading state is resolved
         if (mounted) {
           setLoading(false)
         }
@@ -101,6 +101,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           role: (userData.user.user_metadata?.role as 'citizen' | 'government_official' | 'admin') || 'citizen'
         }
 
+        console.log('Auth: Inserting profile with data:', profileData)
+
         const { data: newProfile, error: createError } = await supabase
           .from('profiles')
           .insert(profileData)
@@ -109,7 +111,21 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         
         if (createError) {
           console.error('Auth: Error creating profile:', createError)
-          if (mounted) setLoading(false)
+          // Create a fallback profile if database insert fails
+          const fallbackProfile: Profile = {
+            id: userId,
+            full_name: profileData.full_name,
+            email: profileData.email,
+            role: profileData.role,
+            verified: false,
+            created_at: new Date().toISOString()
+          }
+          
+          if (mounted) {
+            console.log('Auth: Using fallback profile')
+            setProfile(fallbackProfile)
+            setLoading(false)
+          }
           return
         }
 
@@ -120,7 +136,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         }
       } catch (error: any) {
         console.error('Auth: Error creating profile:', error)
-        if (mounted) setLoading(false)
+        // Always ensure loading state is resolved
+        if (mounted) {
+          setLoading(false)
+        }
       }
     }
 
