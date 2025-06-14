@@ -2,6 +2,7 @@ import { useState, useEffect, useRef } from 'react'
 import { supabase, Post } from '@/lib/supabase'
 import { useAuth } from '@/hooks/useAuth'
 import { useToast } from '@/hooks/use-toast'
+import { PostsService } from '@/services/postsService'
 
 export function usePosts() {
   const [posts, setPosts] = useState<Post[]>([])
@@ -10,7 +11,6 @@ export function usePosts() {
   const { toast } = useToast()
   const channelRef = useRef<any>(null)
   const isSubscribedRef = useRef(false)
-  const fetchTimeoutRef = useRef<NodeJS.Timeout | null>(null)
 
   useEffect(() => {
     console.log('usePosts: Initializing with user:', user?.id)
@@ -27,7 +27,7 @@ export function usePosts() {
       isSubscribedRef.current = false
     }
 
-    // Subscribe to real-time updates with debouncing
+    // Subscribe to real-time updates with heavy debouncing
     if (!channelRef.current && !isSubscribedRef.current) {
       channelRef.current = supabase
         .channel(`posts-realtime-${Date.now()}-${Math.random()}`)
@@ -36,16 +36,12 @@ export function usePosts() {
           schema: 'public',
           table: 'posts'
         }, (payload) => {
-          console.log('Posts table changed:', payload)
+          console.log('Posts table changed:', payload.eventType)
           
-          // Debounce the fetch to avoid multiple rapid calls
-          if (fetchTimeoutRef.current) {
-            clearTimeout(fetchTimeoutRef.current)
-          }
-          
-          fetchTimeoutRef.current = setTimeout(() => {
+          // Heavy debouncing to prevent cascade effects
+          PostsService.debouncedFetch(() => {
             fetchPosts()
-          }, 500) // Wait 500ms before fetching
+          }, 2000)
         })
         .subscribe((status) => {
           console.log('Posts subscription status:', status)
@@ -57,9 +53,6 @@ export function usePosts() {
 
     return () => {
       console.log('Cleaning up posts subscription')
-      if (fetchTimeoutRef.current) {
-        clearTimeout(fetchTimeoutRef.current)
-      }
       if (channelRef.current) {
         try {
           supabase.removeChannel(channelRef.current)
@@ -77,74 +70,12 @@ export function usePosts() {
       console.log('usePosts: Fetching posts...')
       setLoading(true)
       
-      // First, fetch main posts (no parent_id)
-      const { data: postsData, error: postsError } = await supabase
-        .from('posts')
-        .select('*')
-        .is('parent_id', null)
-        .eq('status', 'active')
-        .order('created_at', { ascending: false })
-
-      if (postsError) {
-        console.error('usePosts: Error fetching posts:', postsError)
-        throw postsError
+      const postsWithReplies = await PostsService.fetchPostsWithProfiles()
+      
+      if (postsWithReplies) {
+        console.log('usePosts: Posts with replies loaded:', postsWithReplies.length)
+        setPosts(postsWithReplies)
       }
-
-      console.log('usePosts: Raw posts data:', postsData)
-
-      // Then fetch profiles separately for each post
-      const postsWithProfiles = await Promise.all(
-        (postsData || []).map(async (post) => {
-          const { data: profileData } = await supabase
-            .from('profiles')
-            .select('full_name, email, role, profile_pic_url, verified')
-            .eq('id', post.user_id)
-            .single()
-
-          return {
-            ...post,
-            profiles: profileData
-          }
-        })
-      )
-
-      // For each post, fetch its replies with profiles
-      const postsWithReplies = await Promise.all(
-        postsWithProfiles.map(async (post) => {
-          const { data: repliesData } = await supabase
-            .from('posts')
-            .select('*')
-            .eq('parent_id', post.id)
-            .eq('status', 'active')
-            .order('created_at', { ascending: true })
-
-          // Fetch profiles for replies too
-          const repliesWithProfiles = await Promise.all(
-            (repliesData || []).map(async (reply) => {
-              const { data: replyProfileData } = await supabase
-                .from('profiles')
-                .select('full_name, email, role, profile_pic_url, verified')
-                .eq('id', reply.user_id)
-                .single()
-
-              return {
-                ...reply,
-                profiles: replyProfileData
-              }
-            })
-          )
-
-          console.log(`usePosts: Replies for post ${post.id}:`, repliesWithProfiles?.length || 0)
-          return {
-            ...post,
-            replies: repliesWithProfiles || [],
-            reply_count: repliesWithProfiles?.length || 0
-          }
-        })
-      )
-
-      console.log('usePosts: Posts with replies:', postsWithReplies.length)
-      setPosts(postsWithReplies)
     } catch (error) {
       console.error('usePosts: Error in fetchPosts:', error)
       toast({
@@ -197,8 +128,11 @@ export function usePosts() {
         description: postData.parent_id ? "Your reply has been posted successfully." : "Your post has been created successfully."
       })
 
-      // Refresh posts after creating to show the new reply
-      await fetchPosts()
+      // Immediate refresh for better UX, but debounced to prevent conflicts
+      PostsService.debouncedFetch(() => {
+        fetchPosts()
+      }, 500)
+      
       return data
     } catch (error: any) {
       console.error('usePosts: Error in createPost:', error)
@@ -230,7 +164,10 @@ export function usePosts() {
         description: "You liked this post."
       })
 
-      fetchPosts()
+      // Debounced refresh
+      PostsService.debouncedFetch(() => {
+        fetchPosts()
+      }, 1000)
     } catch (error: any) {
       console.error('usePosts: Error liking post:', error)
       toast({
@@ -288,7 +225,10 @@ export function usePosts() {
         description: "Your post has been deleted."
       })
 
-      fetchPosts()
+      // Debounced refresh
+      PostsService.debouncedFetch(() => {
+        fetchPosts()
+      }, 1000)
     } catch (error: any) {
       console.error('usePosts: Error deleting post:', error)
       toast({
