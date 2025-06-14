@@ -7,12 +7,12 @@ export class UnifiedDataService {
     try {
       console.log('UnifiedDataService: Fetching all posts...')
       
-      // Get posts with profiles
+      // Get posts with profiles using the proper foreign key relationship
       const { data: postsData, error: postsError } = await supabase
         .from('posts')
         .select(`
           *,
-          profiles:user_id (
+          profiles!posts_user_id_profiles_fkey (
             id,
             full_name,
             email,
@@ -44,7 +44,7 @@ export class UnifiedDataService {
         .from('posts')
         .select(`
           *,
-          profiles:user_id (
+          profiles!posts_user_id_profiles_fkey (
             id,
             full_name,
             email,
