@@ -6,7 +6,7 @@ import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { MessageSquare, Vote, LogOut, Users, TrendingUp, Home, Plus } from "lucide-react";
 import { UnifiedPostCard } from "@/components/shared/UnifiedPostCard";
-import { PostComposer } from "@/components/social/PostComposer";
+import { TwitterPostComposer } from "@/components/social/TwitterPostComposer";
 import { PollComposer } from "@/components/social/PollComposer";
 import { PollCard } from "@/components/social/PollCard";
 import { AIChat } from "@/components/ai/AIChat";
@@ -232,11 +232,11 @@ export function CitizenDashboard({ user, onLogout }: CitizenDashboardProps) {
                 </Button>
               </div>
 
-              <PostComposer 
-                isOpen={showPostComposer} 
-                onClose={() => setShowPostComposer(false)}
-                onSubmit={handleCreatePost}
-              />
+              {showPostComposer && (
+                <TwitterPostComposer 
+                  onSubmit={handleCreatePost}
+                />
+              )}
               <PollComposer 
                 isOpen={showPollComposer} 
                 onClose={() => setShowPollComposer(false)} 

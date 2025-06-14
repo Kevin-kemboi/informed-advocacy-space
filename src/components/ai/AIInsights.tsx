@@ -49,8 +49,9 @@ export function AIInsights() {
       }
 
       // Find trending topics based on category frequency
-      const categoryTrends = Object.entries(analytics.categoryStats || {})
-        .sort(([,a], [,b]) => b - a)
+      const categoryStats = analytics.categoryStats || {}
+      const categoryTrends = Object.entries(categoryStats)
+        .sort(([,a], [,b]) => (Number(b) || 0) - (Number(a) || 0))
         .slice(0, 4)
         .map(([category, count]) => ({
           name: category.charAt(0).toUpperCase() + category.slice(1),
@@ -60,31 +61,31 @@ export function AIInsights() {
       // Generate priority recommendations based on real data
       const priorities = []
       
-      if (analytics.categoryStats?.emergency > 0) {
+      if ((categoryStats.emergency || 0) > 0) {
         priorities.push({
           level: 'Critical',
           title: 'Emergency Response Needed',
-          description: `${analytics.categoryStats.emergency} emergency posts require immediate attention from emergency services.`,
+          description: `${categoryStats.emergency} emergency posts require immediate attention from emergency services.`,
           category: 'Emergency',
           color: 'red'
         })
       }
 
-      if (analytics.categoryStats?.crime > 0) {
+      if ((categoryStats.crime || 0) > 0) {
         priorities.push({
           level: 'High',
           title: 'Crime & Safety Concerns',
-          description: `${analytics.categoryStats.crime} crime-related posts indicate community safety issues that need police attention.`,
+          description: `${categoryStats.crime} crime-related posts indicate community safety issues that need police attention.`,
           category: 'Crime & Safety',
           color: 'orange'
         })
       }
 
-      if (analytics.categoryStats?.health > 0) {
+      if ((categoryStats.health || 0) > 0) {
         priorities.push({
           level: 'Medium',
           title: 'Health Service Improvements',
-          description: `${analytics.categoryStats.health} health-related posts suggest areas for healthcare improvements.`,
+          description: `${categoryStats.health} health-related posts suggest areas for healthcare improvements.`,
           category: 'Health',
           color: 'yellow'
         })

@@ -311,7 +311,7 @@ export function OfficialDashboard({ user, onLogout }: OfficialDashboardProps) {
                     {Object.entries(analyticsData?.categoryStats || {}).map(([category, count]) => (
                       <div key={category} className="flex justify-between items-center">
                         <span className="capitalize">{category}</span>
-                        <Badge variant="outline">{count}</Badge>
+                        <Badge variant="outline">{String(count)}</Badge>
                       </div>
                     ))}
                   </div>
