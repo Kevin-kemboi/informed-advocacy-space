@@ -1,3 +1,4 @@
+
 import { useEffect, useState, createContext, useContext, ReactNode } from 'react'
 import { supabase, getRoleFromEmail, validateEmailDomain } from '@/lib/supabase'
 import { User } from '@supabase/supabase-js'
@@ -81,7 +82,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     try {
       console.log('Auth: Fetching profile from database...')
 
-      // Simplified profile fetch without timeout
       const { data, error } = await supabase
         .from('profiles')
         .select('*')
@@ -92,58 +92,24 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
       if (error) {
         console.error('Auth: Database error fetching profile:', error)
+        
+        // Try to create profile if it doesn't exist
+        if (error.code === 'PGRST116' || error.message.includes('no rows returned')) {
+          console.log('Auth: Profile not found, attempting to create...')
+          await createProfile(userId)
+          return
+        }
+        
         throw error
       }
 
       if (!data) {
         console.log('Auth: No profile found, creating new profile...')
-        
-        // Get user data for creating profile
-        const { data: userData, error: userError } = await supabase.auth.getUser()
-        console.log('Auth: User data for profile creation:', { userData: userData?.user?.email, userError })
-        
-        if (userError) {
-          console.error('Auth: Error getting user data:', userError)
-          throw userError
-        }
-
-        if (!userData.user) {
-          console.error('Auth: No user data available for profile creation')
-          throw new Error('No user data available')
-        }
-
-        const profileData = {
-          id: userId,
-          full_name: userData.user.user_metadata?.full_name || userData.user.email?.split('@')[0] || 'User',
-          email: userData.user.email || '',
-          role: 'citizen' as const
-        }
-
-        console.log('Auth: Creating new profile with data:', profileData)
-
-        const { data: newProfile, error: createError } = await supabase
-          .from('profiles')
-          .insert(profileData)
-          .select()
-          .single()
-        
-        console.log('Auth: Profile creation result:', { newProfile, createError })
-        
-        if (createError) {
-          console.error('Auth: Error creating profile:', createError)
-          toast({
-            title: "Profile Creation Error",
-            description: `Failed to create profile: ${createError.message}`,
-            variant: "destructive",
-          })
-          throw createError
-        }
-
-        console.log('Auth: Profile created successfully:', newProfile)
-        setProfile(newProfile)
+        await createProfile(userId)
       } else {
         console.log('Auth: Profile fetched successfully:', data)
         setProfile(data)
+        setLoading(false)
       }
     } catch (error: any) {
       console.error('Auth: Error in fetchProfile:', error)
@@ -154,10 +120,67 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         variant: "destructive",
       })
       
-      // Set profile to null but don't keep loading forever
       setProfile(null)
-    } finally {
-      console.log('Auth: Setting loading to false')
+      setLoading(false)
+    }
+  }
+
+  const createProfile = async (userId: string) => {
+    try {
+      console.log('Auth: Creating profile for user:', userId)
+      
+      // Get user data for creating profile
+      const { data: userData, error: userError } = await supabase.auth.getUser()
+      console.log('Auth: User data for profile creation:', { userData: userData?.user?.email, userError })
+      
+      if (userError) {
+        console.error('Auth: Error getting user data:', userError)
+        throw userError
+      }
+
+      if (!userData.user) {
+        console.error('Auth: No user data available for profile creation')
+        throw new Error('No user data available')
+      }
+
+      const profileData = {
+        id: userId,
+        full_name: userData.user.user_metadata?.full_name || userData.user.email?.split('@')[0] || 'User',
+        email: userData.user.email || '',
+        role: 'citizen' as const
+      }
+
+      console.log('Auth: Creating new profile with data:', profileData)
+
+      const { data: newProfile, error: createError } = await supabase
+        .from('profiles')
+        .insert(profileData)
+        .select()
+        .single()
+      
+      console.log('Auth: Profile creation result:', { newProfile, createError })
+      
+      if (createError) {
+        console.error('Auth: Error creating profile:', createError)
+        toast({
+          title: "Profile Creation Error",
+          description: `Failed to create profile: ${createError.message}`,
+          variant: "destructive",
+        })
+        throw createError
+      }
+
+      console.log('Auth: Profile created successfully:', newProfile)
+      setProfile(newProfile)
+      setLoading(false)
+    } catch (error: any) {
+      console.error('Auth: Error creating profile:', error)
+      toast({
+        title: "Profile Creation Error",
+        description: `Failed to create profile: ${error.message || 'Unknown error'}`,
+        variant: "destructive",
+      })
+      setProfile(null)
       setLoading(false)
     }
   }

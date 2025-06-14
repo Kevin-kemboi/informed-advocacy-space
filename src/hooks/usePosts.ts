@@ -1,4 +1,3 @@
-
 import { useState, useEffect, useRef } from 'react'
 import { supabase, Post } from '@/lib/supabase'
 import { useAuth } from '@/hooks/useAuth'
@@ -12,14 +11,23 @@ export function usePosts() {
   const { toast } = useToast()
   const channelRef = useRef<any>(null)
   const isSubscribedRef = useRef(false)
+  const mountedRef = useRef(true)
+
+  useEffect(() => {
+    mountedRef.current = true
+    return () => {
+      mountedRef.current = false
+    }
+  }, [])
 
   useEffect(() => {
     console.log('usePosts: Initializing with user:', user?.id)
     fetchPosts()
 
-    // Clean up existing subscription
+    // Clean up existing subscription first
     if (channelRef.current) {
       try {
+        console.log('Cleaning up existing posts subscription')
         supabase.removeChannel(channelRef.current)
       } catch (error) {
         console.log('Error removing existing channel:', error)
@@ -28,10 +36,13 @@ export function usePosts() {
       isSubscribedRef.current = false
     }
 
-    // Subscribe to real-time updates with heavy debouncing
-    if (!channelRef.current && !isSubscribedRef.current) {
+    // Only set up realtime if we have a user and haven't subscribed yet
+    if (user && !channelRef.current && !isSubscribedRef.current) {
+      const channelName = `posts-realtime-${Date.now()}-${Math.random()}`
+      console.log('Setting up realtime subscription:', channelName)
+      
       channelRef.current = supabase
-        .channel(`posts-realtime-${Date.now()}-${Math.random()}`)
+        .channel(channelName)
         .on('postgres_changes', {
           event: '*',
           schema: 'public',
@@ -39,15 +50,21 @@ export function usePosts() {
         }, (payload) => {
           console.log('Posts table changed:', payload.eventType)
           
-          // Heavy debouncing to prevent cascade effects
-          PostsService.debouncedFetch(() => {
-            fetchPosts()
-          }, 2000)
+          // Only update if component is still mounted
+          if (mountedRef.current) {
+            PostsService.debouncedFetch(() => {
+              if (mountedRef.current) {
+                fetchPosts()
+              }
+            }, 2000)
+          }
         })
         .subscribe((status) => {
           console.log('Posts subscription status:', status)
           if (status === 'SUBSCRIBED') {
             isSubscribedRef.current = true
+          } else if (status === 'CLOSED' || status === 'CHANNEL_ERROR') {
+            isSubscribedRef.current = false
           }
         })
     }
@@ -74,23 +91,30 @@ export function usePosts() {
       // Use the PostsService which has the correct query
       const postsWithReplies = await PostsService.fetchPostsWithProfiles()
       
-      if (postsWithReplies) {
-        console.log('usePosts: Posts with replies loaded:', postsWithReplies.length)
-        setPosts(postsWithReplies)
-      } else {
-        console.log('usePosts: No posts returned from service')
-        setPosts([])
+      // Only update state if component is still mounted
+      if (mountedRef.current) {
+        if (postsWithReplies && postsWithReplies.length > 0) {
+          console.log('usePosts: Posts with replies loaded:', postsWithReplies.length)
+          setPosts(postsWithReplies)
+        } else {
+          console.log('usePosts: No posts returned from service')
+          setPosts([])
+        }
       }
     } catch (error) {
       console.error('usePosts: Error in fetchPosts:', error)
-      toast({
-        title: "Error",
-        description: "Failed to load posts. Please try again.",
-        variant: "destructive"
-      })
-      setPosts([])
+      if (mountedRef.current) {
+        toast({
+          title: "Error",
+          description: "Failed to load posts. Please try again.",
+          variant: "destructive"
+        })
+        setPosts([])
+      }
     } finally {
-      setLoading(false)
+      if (mountedRef.current) {
+        setLoading(false)
+      }
     }
   }
 
@@ -134,9 +158,13 @@ export function usePosts() {
       })
 
       // Immediate refresh for better UX, but debounced to prevent conflicts
-      PostsService.debouncedFetch(() => {
-        fetchPosts()
-      }, 500)
+      if (mountedRef.current) {
+        PostsService.debouncedFetch(() => {
+          if (mountedRef.current) {
+            fetchPosts()
+          }
+        }, 500)
+      }
       
       return data
     } catch (error: any) {
@@ -170,9 +198,13 @@ export function usePosts() {
       })
 
       // Debounced refresh
-      PostsService.debouncedFetch(() => {
-        fetchPosts()
-      }, 1000)
+      if (mountedRef.current) {
+        PostsService.debouncedFetch(() => {
+          if (mountedRef.current) {
+            fetchPosts()
+          }
+        }, 1000)
+      }
     } catch (error: any) {
       console.error('usePosts: Error liking post:', error)
       toast({
@@ -231,9 +263,13 @@ export function usePosts() {
       })
 
       // Debounced refresh
-      PostsService.debouncedFetch(() => {
-        fetchPosts()
-      }, 1000)
+      if (mountedRef.current) {
+        PostsService.debouncedFetch(() => {
+          if (mountedRef.current) {
+            fetchPosts()
+          }
+        }, 1000)
+      }
     } catch (error: any) {
       console.error('usePosts: Error deleting post:', error)
       toast({

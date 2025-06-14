@@ -38,7 +38,40 @@ export class PostsService {
 
       if (postsError) {
         console.error('PostsService: Error fetching posts:', postsError)
-        throw postsError
+        // Instead of throwing, let's try a simpler query
+        console.log('PostsService: Trying simpler query without foreign key...')
+        
+        const { data: simplePosts, error: simpleError } = await supabase
+          .from('posts')
+          .select('*')
+          .is('parent_id', null)
+          .eq('status', 'active')
+          .order('created_at', { ascending: false })
+
+        if (simpleError) {
+          console.error('PostsService: Simple query also failed:', simpleError)
+          return []
+        }
+
+        console.log('PostsService: Simple posts query successful:', simplePosts?.length)
+        
+        // Manually fetch profiles for each post
+        const postsWithProfiles = await Promise.all(
+          (simplePosts || []).map(async (post) => {
+            const { data: profile } = await supabase
+              .from('profiles')
+              .select('id, full_name, email, role, profile_pic_url, verified')
+              .eq('id', post.user_id)
+              .single()
+            
+            return {
+              ...post,
+              profiles: profile
+            }
+          })
+        )
+
+        return postsWithProfiles
       }
 
       // Get all main post IDs for batch reply fetching
