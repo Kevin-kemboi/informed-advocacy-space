@@ -1,3 +1,4 @@
+
 import { useState, useEffect, useRef } from 'react'
 import { supabase, Post } from '@/lib/supabase'
 import { useAuth } from '@/hooks/useAuth'
@@ -70,11 +71,15 @@ export function usePosts() {
       console.log('usePosts: Fetching posts...')
       setLoading(true)
       
+      // Use the PostsService which has the correct query
       const postsWithReplies = await PostsService.fetchPostsWithProfiles()
       
       if (postsWithReplies) {
         console.log('usePosts: Posts with replies loaded:', postsWithReplies.length)
         setPosts(postsWithReplies)
+      } else {
+        console.log('usePosts: No posts returned from service')
+        setPosts([])
       }
     } catch (error) {
       console.error('usePosts: Error in fetchPosts:', error)

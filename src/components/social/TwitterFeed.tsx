@@ -8,14 +8,15 @@ import { usePosts } from "@/hooks/usePosts"
 import { useAuth } from "@/hooks/useAuth"
 
 export function TwitterFeed() {
-  const { posts, loading, createPost } = usePosts()
-  const { user, profile } = useAuth()
+  const { posts, loading: postsLoading, createPost } = usePosts()
+  const { user, profile, loading: authLoading } = useAuth()
 
   console.log('TwitterFeed render:', { 
     user: user?.id, 
     profile: profile?.full_name, 
     postsCount: posts?.length, 
-    loading,
+    postsLoading,
+    authLoading,
     posts: posts?.slice(0, 2) // Log first 2 posts for debugging
   })
 
@@ -36,8 +37,24 @@ export function TwitterFeed() {
     }
   }
 
+  // Show loading while auth is still loading
+  if (authLoading) {
+    console.log('TwitterFeed: Auth loading, showing spinner')
+    return (
+      <TwitterLayout>
+        <Card className="text-center py-12">
+          <CardContent className="flex flex-col items-center gap-4">
+            <Loader2 className="h-8 w-8 animate-spin text-blue-600" />
+            <p className="text-gray-600">Loading your profile...</p>
+          </CardContent>
+        </Card>
+      </TwitterLayout>
+    )
+  }
+
+  // Show sign in message if no user or profile
   if (!user || !profile) {
-    console.log('TwitterFeed: No user or profile, showing sign in message')
+    console.log('TwitterFeed: No user or profile, showing sign in message', { user: !!user, profile: !!profile })
     return (
       <TwitterLayout>
         <Card className="text-center py-12">
@@ -56,7 +73,7 @@ export function TwitterFeed() {
         <TwitterPostComposer onSubmit={handleCreatePost} />
 
         {/* Posts Feed */}
-        {loading ? (
+        {postsLoading ? (
           <Card className="text-center py-12">
             <CardContent className="flex flex-col items-center gap-4">
               <Loader2 className="h-8 w-8 animate-spin text-blue-600" />
