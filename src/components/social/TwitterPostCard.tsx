@@ -38,7 +38,8 @@ export function TwitterPostCard({ post, isReply = false }: TwitterPostCardProps)
     isReply, 
     author: post.profiles?.full_name,
     repliesCount: post.replies?.length || post.reply_count || 0,
-    showReplyForm 
+    showReplyForm,
+    hasReplies: post.replies && post.replies.length > 0
   })
 
   const handleReply = async () => {
@@ -68,7 +69,7 @@ export function TwitterPostCard({ post, isReply = false }: TwitterPostCardProps)
     <motion.div
       initial={{ opacity: 0, y: 20 }}
       animate={{ opacity: 1, y: 0 }}
-      className={isReply ? "ml-12 border-l-2 border-gray-200 pl-4" : ""}
+      className={isReply ? "ml-8 mt-4 border-l-2 border-gray-200 pl-4" : ""}
     >
       <Card className="border-gray-200 bg-white hover:bg-gray-50/50 transition-colors">
         <CardContent className="p-4">
@@ -239,22 +240,26 @@ export function TwitterPostCard({ post, isReply = false }: TwitterPostCardProps)
                   </div>
                 </motion.div>
               )}
-
-              {/* Replies - Only show for main posts */}
-              {!isReply && post.replies && post.replies.length > 0 && (
-                <div className="mt-4 space-y-4">
-                  {post.replies.map((reply) => {
-                    console.log('TwitterPostCard: Rendering reply:', reply.id)
-                    return (
-                      <TwitterPostCard key={reply.id} post={reply} isReply={true} />
-                    )
-                  })}
-                </div>
-              )}
             </div>
           </div>
         </CardContent>
       </Card>
+
+      {/* Replies Section - Only show for main posts and when replies exist */}
+      {!isReply && post.replies && post.replies.length > 0 && (
+        <div className="mt-2">
+          {post.replies.map((reply) => {
+            console.log('TwitterPostCard: Rendering reply:', { 
+              replyId: reply.id, 
+              content: reply.content?.substring(0, 30) + '...',
+              author: reply.profiles?.full_name 
+            })
+            return (
+              <TwitterPostCard key={reply.id} post={reply} isReply={true} />
+            )
+          })}
+        </div>
+      )}
     </motion.div>
   )
 }
