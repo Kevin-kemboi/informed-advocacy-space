@@ -10,11 +10,39 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
-import { Home, LogOut, User, Settings } from "lucide-react"
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from "@/components/ui/tooltip"
+import { Home, LogOut, User, Settings, Keyboard } from "lucide-react"
 import { useAuth } from "@/hooks/useAuth"
+import { useEffect } from "react"
+import { useNavigation } from "@/hooks/useNavigation"
 
 export function Header() {
   const { user, profile, signOut } = useAuth()
+  const { goBack, goForward } = useNavigation()
+
+  // Keyboard navigation shortcuts
+  useEffect(() => {
+    const handleKeyDown = (event: KeyboardEvent) => {
+      // Alt + Left Arrow = Back
+      if (event.altKey && event.key === 'ArrowLeft') {
+        event.preventDefault()
+        goBack()
+      }
+      // Alt + Right Arrow = Forward
+      if (event.altKey && event.key === 'ArrowRight') {
+        event.preventDefault()
+        goForward()
+      }
+    }
+
+    window.addEventListener('keydown', handleKeyDown)
+    return () => window.removeEventListener('keydown', handleKeyDown)
+  }, [goBack, goForward])
 
   if (!user || !profile) return null
 
@@ -40,6 +68,23 @@ export function Header() {
           <Badge variant="outline" className="hidden sm:inline-flex">
             {profile.role.replace('_', ' ')}
           </Badge>
+          
+          <TooltipProvider>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Button variant="ghost" size="sm" className="hidden md:flex">
+                  <Keyboard className="h-4 w-4 mr-2" />
+                  Shortcuts
+                </Button>
+              </TooltipTrigger>
+              <TooltipContent>
+                <div className="text-sm space-y-1">
+                  <div><kbd className="px-2 py-1 bg-gray-100 rounded text-xs">Alt + ←</kbd> Go Back</div>
+                  <div><kbd className="px-2 py-1 bg-gray-100 rounded text-xs">Alt + →</kbd> Go Forward</div>
+                </div>
+              </TooltipContent>
+            </Tooltip>
+          </TooltipProvider>
           
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
