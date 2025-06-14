@@ -1,4 +1,3 @@
-
 import { useState, useEffect, useRef } from 'react'
 import { supabase, Post } from '@/lib/supabase'
 import { useAuth } from '@/hooks/useAuth'
@@ -12,6 +11,15 @@ export function useEnhancedPosts() {
   const { user } = useAuth()
   const { toast } = useToast()
   const channelRef = useRef<any>(null)
+  const mountedRef = useRef(true)
+  const hasSetupSubscription = useRef(false)
+
+  useEffect(() => {
+    mountedRef.current = true
+    return () => {
+      mountedRef.current = false
+    }
+  }, [])
 
   useEffect(() => {
     fetchPosts()
@@ -19,35 +27,64 @@ export function useEnhancedPosts() {
       fetchUserInteractions()
     }
     
-    // Real-time subscription
-    if (!channelRef.current) {
-      channelRef.current = supabase
-        .channel(`enhanced-posts-${Date.now()}`)
-        .on('postgres_changes', {
-          event: '*',
-          schema: 'public',
-          table: 'posts'
-        }, () => {
-          fetchPosts()
-        })
-        .on('postgres_changes', {
-          event: '*',
-          schema: 'public',
-          table: 'likes'
-        }, () => {
-          fetchPosts()
-          if (user) fetchUserInteractions()
-        })
-        .subscribe()
+    // Only set up subscription once and only when we have a user
+    if (user && !hasSetupSubscription.current) {
+      setupRealtimeSubscription()
+      hasSetupSubscription.current = true
     }
 
     return () => {
+      // Only cleanup on unmount or when user changes
       if (channelRef.current) {
-        supabase.removeChannel(channelRef.current)
+        console.log('Cleaning up enhanced posts subscription')
+        try {
+          supabase.removeChannel(channelRef.current)
+        } catch (error) {
+          console.log('Error removing enhanced posts channel on cleanup:', error)
+        }
         channelRef.current = null
+        hasSetupSubscription.current = false
       }
     }
-  }, [user])
+  }, [user?.id]) // Keep user?.id dependency but use ref to prevent duplicate subscriptions
+
+  const setupRealtimeSubscription = () => {
+    // Don't create new subscription if one already exists
+    if (channelRef.current || hasSetupSubscription.current) {
+      console.log('Enhanced posts subscription already exists, skipping setup')
+      return
+    }
+
+    const channelName = `enhanced-posts-${user?.id || 'anon'}-${Date.now()}`
+    console.log('Setting up enhanced posts realtime subscription:', channelName)
+    
+    channelRef.current = supabase
+      .channel(channelName)
+      .on('postgres_changes', {
+        event: '*',
+        schema: 'public',
+        table: 'posts'
+      }, () => {
+        console.log('Enhanced posts table changed')
+        if (mountedRef.current) {
+          fetchPosts()
+        }
+      })
+      .on('postgres_changes', {
+        event: '*',
+        schema: 'public',
+        table: 'likes'
+      }, () => {
+        console.log('Enhanced posts likes table changed')
+        if (mountedRef.current) {
+          fetchPosts()
+          if (user) fetchUserInteractions()
+        }
+      })
+      .subscribe((status) => {
+        console.log('Enhanced posts subscription status:', status)
+      })
+  }
 
   const fetchPosts = async () => {
     try {
@@ -99,16 +136,22 @@ export function useEnhancedPosts() {
         })
       )
 
-      setPosts(postsWithReplies as Post[])
+      if (mountedRef.current) {
+        setPosts(postsWithReplies as Post[])
+      }
     } catch (error) {
-      console.error('Error fetching posts:', error)
-      toast({
-        title: "Error",
-        description: "Failed to load posts",
-        variant: "destructive"
-      })
+      console.error('Error fetching enhanced posts:', error)
+      if (mountedRef.current) {
+        toast({
+          title: "Error",
+          description: "Failed to load posts",
+          variant: "destructive"
+        })
+      }
     } finally {
-      setLoading(false)
+      if (mountedRef.current) {
+        setLoading(false)
+      }
     }
   }
 
@@ -122,7 +165,7 @@ export function useEnhancedPosts() {
         .select('post_id')
         .eq('user_id', user.id)
 
-      if (likes) {
+      if (likes && mountedRef.current) {
         setUserLikes(new Set(likes.map(like => like.post_id)))
       }
 
@@ -132,7 +175,7 @@ export function useEnhancedPosts() {
         .select('post_id')
         .eq('user_id', user.id)
 
-      if (reposts) {
+      if (reposts && mountedRef.current) {
         setUserReposts(new Set(reposts.map(repost => repost.post_id)))
       }
     } catch (error) {
@@ -174,7 +217,9 @@ export function useEnhancedPosts() {
         description: "Your post has been shared successfully."
       })
 
-      fetchPosts()
+      if (mountedRef.current) {
+        fetchPosts()
+      }
       return data
     } catch (error: any) {
       console.error('Error creating post:', error)
@@ -219,7 +264,9 @@ export function useEnhancedPosts() {
         await supabase.rpc('increment_likes', { post_id: postId })
       }
 
-      fetchPosts()
+      if (mountedRef.current) {
+        fetchPosts()
+      }
     } catch (error: any) {
       console.error('Error liking post:', error)
       toast({
@@ -260,7 +307,9 @@ export function useEnhancedPosts() {
         setUserReposts(prev => new Set([...prev, postId]))
       }
 
-      fetchPosts()
+      if (mountedRef.current) {
+        fetchPosts()
+      }
       toast({
         title: userReposts.has(postId) ? "Repost Removed" : "Reposted",
         description: userReposts.has(postId) ? "Post removed from your profile" : "Post shared to your profile"
@@ -315,7 +364,9 @@ export function useEnhancedPosts() {
         description: "The post has been removed successfully."
       })
 
-      fetchPosts()
+      if (mountedRef.current) {
+        fetchPosts()
+      }
     } catch (error: any) {
       console.error('Error deleting post:', error)
       toast({
