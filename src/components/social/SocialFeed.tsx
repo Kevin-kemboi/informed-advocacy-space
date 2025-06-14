@@ -1,6 +1,7 @@
 
 import React, { useState } from 'react'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
+import { Button } from '@/components/ui/button'
 import { Skeleton } from '@/components/ui/skeleton'
 import { AuroraBackground } from '@/components/ui/aurora-background'
 import { AnimatedList } from '@/components/ui/animated-list'
@@ -11,6 +12,7 @@ import { PollCard } from '@/components/social/PollCard'
 import { useEnhancedPosts } from '@/hooks/useEnhancedPosts'
 import { useSocialPolls } from '@/hooks/useSocialPolls'
 import { useAuth } from '@/hooks/useAuth'
+import { Plus, MessageSquare, BarChart3 } from 'lucide-react'
 
 export function SocialFeed() {
   const { posts, loading: postsLoading } = useEnhancedPosts()
@@ -38,7 +40,9 @@ export function SocialFeed() {
       location: profile.location,
       verified: profile.verified
     } : null,
-    authLoading
+    authLoading,
+    postsLoading,
+    pollsLoading
   })
 
   // Combine and sort posts and polls by creation date
@@ -47,12 +51,37 @@ export function SocialFeed() {
     ...polls.map(poll => ({ ...poll, type: 'poll' as const }))
   ].sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime())
 
+  console.log('SocialFeed: Feed items:', {
+    totalItems: feedItems.length,
+    postItems: feedItems.filter(item => item.type === 'post').length,
+    pollItems: feedItems.filter(item => item.type === 'poll').length
+  })
+
   return (
     <div className="relative min-h-screen">
       <AuroraBackground className="absolute inset-0" />
       <div className="relative z-10 container mx-auto px-4 py-8 max-w-2xl">
         {canCreate && (
           <div className="mb-8 space-y-4">
+            {/* Action Buttons */}
+            <div className="flex gap-3 justify-center">
+              <Button
+                onClick={() => setShowPostComposer(true)}
+                className="flex items-center gap-2 bg-blue-600 hover:bg-blue-700"
+              >
+                <MessageSquare className="w-4 h-4" />
+                Create Post
+              </Button>
+              <Button
+                onClick={() => setShowPollComposer(true)}
+                variant="outline"
+                className="flex items-center gap-2"
+              >
+                <BarChart3 className="w-4 h-4" />
+                Create Poll
+              </Button>
+            </div>
+
             <PostComposer 
               isOpen={showPostComposer} 
               onClose={() => setShowPostComposer(false)} 
@@ -91,6 +120,17 @@ export function SocialFeed() {
                   : "Check back later for community updates."
                 }
               </p>
+              {canCreate && (
+                <div className="mt-4 flex gap-3 justify-center">
+                  <Button
+                    onClick={() => setShowPostComposer(true)}
+                    className="flex items-center gap-2"
+                  >
+                    <Plus className="w-4 h-4" />
+                    Create Your First Post
+                  </Button>
+                </div>
+              )}
             </CardContent>
           </Card>
         ) : (
