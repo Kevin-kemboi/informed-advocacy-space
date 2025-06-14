@@ -18,39 +18,55 @@ export function useRealtimeSubscriptions({
   mounted 
 }: UseRealtimeSubscriptionsProps) {
   const channelRef = useRef<any>(null)
-  const subscriptionStateRef = useRef<'idle' | 'subscribing' | 'subscribed' | 'error'>('idle')
-  const currentUserRef = useRef<string | null>(null)
+  const isSubscribedRef = useRef(false)
+  const currentUserIdRef = useRef<string | null>(null)
 
   const cleanupSubscription = () => {
-    if (channelRef.current && subscriptionStateRef.current !== 'idle') {
+    console.log('useRealtimeSubscriptions: Starting cleanup')
+    
+    if (channelRef.current) {
       try {
-        channelRef.current.unsubscribe()
+        // Only unsubscribe if we actually subscribed
+        if (isSubscribedRef.current) {
+          console.log('useRealtimeSubscriptions: Unsubscribing from channel')
+          channelRef.current.unsubscribe()
+        }
+        
+        // Remove the channel from Supabase
+        console.log('useRealtimeSubscriptions: Removing channel')
         supabase.removeChannel(channelRef.current)
       } catch (error) {
-        // Silently handle cleanup errors
+        console.error('useRealtimeSubscriptions: Error during cleanup:', error)
       }
+      
       channelRef.current = null
     }
-    subscriptionStateRef.current = 'idle'
-    currentUserRef.current = null
+    
+    isSubscribedRef.current = false
+    currentUserIdRef.current = null
+    console.log('useRealtimeSubscriptions: Cleanup completed')
   }
 
   const setupRealtimeSubscription = () => {
-    // Prevent multiple subscriptions
-    if (!user || !mounted || subscriptionStateRef.current !== 'idle' || currentUserRef.current === user.id) {
+    console.log('useRealtimeSubscriptions: Setting up subscription for user:', user?.id)
+    
+    // Don't setup if we already have an active subscription for this user
+    if (channelRef.current && isSubscribedRef.current && currentUserIdRef.current === user?.id) {
+      console.log('useRealtimeSubscriptions: Subscription already exists for this user')
       return
     }
 
-    // Clean up any existing subscription
-    cleanupSubscription()
+    // Clean up any existing subscription first
+    if (channelRef.current) {
+      console.log('useRealtimeSubscriptions: Cleaning up existing subscription before creating new one')
+      cleanupSubscription()
+    }
 
+    // Create a new channel with a unique name
+    const channelName = `civic-realtime-${user.id}-${Date.now()}`
+    console.log('useRealtimeSubscriptions: Creating new channel:', channelName)
+    
     try {
-      subscriptionStateRef.current = 'subscribing'
-      currentUserRef.current = user.id
-      
-      // Create channel with unique name
-      const channelName = `civic-realtime-${user.id}-${Date.now()}`
-      
       channelRef.current = supabase
         .channel(channelName)
         .on('postgres_changes', {
@@ -58,7 +74,8 @@ export function useRealtimeSubscriptions({
           schema: 'public',
           table: 'posts'
         }, (payload) => {
-          if (mounted && currentUserRef.current === user.id && subscriptionStateRef.current === 'subscribed') {
+          console.log('useRealtimeSubscriptions: Posts table changed:', payload)
+          if (mounted && currentUserIdRef.current === user.id) {
             onPostsChange()
           }
         })
@@ -67,7 +84,8 @@ export function useRealtimeSubscriptions({
           schema: 'public',
           table: 'polls'
         }, (payload) => {
-          if (mounted && currentUserRef.current === user.id && subscriptionStateRef.current === 'subscribed') {
+          console.log('useRealtimeSubscriptions: Polls table changed:', payload)
+          if (mounted && currentUserIdRef.current === user.id) {
             onPollsChange()
           }
         })
@@ -76,7 +94,8 @@ export function useRealtimeSubscriptions({
           schema: 'public',
           table: 'votes'
         }, (payload) => {
-          if (mounted && currentUserRef.current === user.id && subscriptionStateRef.current === 'subscribed') {
+          console.log('useRealtimeSubscriptions: Votes table changed:', payload)
+          if (mounted && currentUserIdRef.current === user.id) {
             onVotesChange()
           }
         })
@@ -85,42 +104,75 @@ export function useRealtimeSubscriptions({
           schema: 'public',
           table: 'likes'
         }, (payload) => {
-          if (mounted && currentUserRef.current === user.id && subscriptionStateRef.current === 'subscribed') {
+          console.log('useRealtimeSubscriptions: Likes table changed:', payload)
+          if (mounted && currentUserIdRef.current === user.id) {
             onPostsChange()
           }
         })
 
-      // Subscribe with status tracking
+      // Subscribe only once and track the subscription status
+      console.log('useRealtimeSubscriptions: Subscribing to channel...')
       channelRef.current.subscribe((status) => {
-        if (currentUserRef.current === user.id) {
-          if (status === 'SUBSCRIBED') {
-            subscriptionStateRef.current = 'subscribed'
-          } else if (status === 'CHANNEL_ERROR' || status === 'TIMED_OUT' || status === 'CLOSED') {
-            subscriptionStateRef.current = 'error'
-            cleanupSubscription()
-          }
+        console.log('useRealtimeSubscriptions: Subscription status:', status)
+        
+        if (status === 'SUBSCRIBED') {
+          isSubscribedRef.current = true
+          currentUserIdRef.current = user.id
+          console.log('useRealtimeSubscriptions: Successfully subscribed')
+        } else if (status === 'CHANNEL_ERROR' || status === 'TIMED_OUT' || status === 'CLOSED') {
+          console.error('useRealtimeSubscriptions: Subscription failed with status:', status)
+          isSubscribedRef.current = false
+          currentUserIdRef.current = null
+          // Don't cleanup here as it might cause infinite loops
         }
       })
+      
     } catch (error) {
-      subscriptionStateRef.current = 'error'
+      console.error('useRealtimeSubscriptions: Error setting up subscription:', error)
       cleanupSubscription()
     }
   }
 
   useEffect(() => {
-    if (user && mounted && subscriptionStateRef.current === 'idle') {
-      setupRealtimeSubscription()
-    } else if (!user && subscriptionStateRef.current !== 'idle') {
+    console.log('useRealtimeSubscriptions: Effect triggered', { 
+      userId: user?.id, 
+      mounted, 
+      hasChannel: !!channelRef.current,
+      isSubscribed: isSubscribedRef.current,
+      currentUser: currentUserIdRef.current
+    })
+
+    if (user && mounted) {
+      // Only setup if we don't have a subscription for this user
+      if (!channelRef.current || !isSubscribedRef.current || currentUserIdRef.current !== user.id) {
+        setupRealtimeSubscription()
+      }
+    } else if (!user) {
+      // Clean up when user logs out
+      console.log('useRealtimeSubscriptions: User logged out, cleaning up')
       cleanupSubscription()
     }
 
-    return cleanupSubscription
+    // Cleanup function for when component unmounts or user changes
+    return () => {
+      if (!user || currentUserIdRef.current !== user?.id) {
+        console.log('useRealtimeSubscriptions: Effect cleanup triggered')
+        cleanupSubscription()
+      }
+    }
   }, [user?.id, mounted])
 
-  // Cleanup on unmount
+  // Additional cleanup on unmount
   useEffect(() => {
-    return cleanupSubscription
+    return () => {
+      console.log('useRealtimeSubscriptions: Component unmounting, final cleanup')
+      cleanupSubscription()
+    }
   }, [])
 
-  return { cleanupSubscription }
+  return { 
+    cleanupSubscription,
+    isSubscribed: isSubscribedRef.current,
+    channelName: channelRef.current?.topic
+  }
 }
