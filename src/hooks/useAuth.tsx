@@ -37,81 +37,56 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     
     let mounted = true
 
-    const fetchProfile = async (userId: string) => {
-      if (!mounted) return
+    // createProfile should return a boolean indicating if a profile was successfully set (including fallback)
+    const createProfile = async (userId: string): Promise<boolean> => {
+      if (!mounted) return false;
       
+      let profileSet = false;
       try {
-        console.log('Auth: Fetching profile for user:', userId)
-
-        const { data, error } = await supabase
-          .from('profiles')
-          .select('*')
-          .eq('id', userId)
-          .maybeSingle()
-
-        console.log('Auth: Profile query completed:', { data, error })
-
-        if (error) {
-          console.error('Auth: Error fetching profile:', error)
-          // Don't throw, just create a default profile
-          await createProfile(userId)
-          return
-        }
-
-        if (!data) {
-          console.log('Auth: No profile found, creating new profile')
-          await createProfile(userId)
-        } else {
-          console.log('Auth: Profile found:', data)
-          if (mounted) {
-            setProfile(data)
-            setLoading(false)
+        console.log('Auth: Creating profile for user:', userId);
+        
+        const { data: userDataResponse, error: userError } = await supabase.auth.getUser();
+        
+        if (userError || !userDataResponse.user) {
+          console.error('Auth: Cannot create profile - no user data:', userError);
+          // Attempt to set a minimal fallback if user data fetch fails but we have a userId
+          if (mounted && !profile) { // Check if profile is still not set
+            const criticalFallbackProfile: Profile = {
+              id: userId,
+              full_name: 'Error User',
+              email: `user_${userId.substring(0,8)}@error.com`,
+              role: 'citizen',
+              verified: false,
+              created_at: new Date().toISOString()
+            };
+            setProfile(criticalFallbackProfile);
+            profileSet = true;
+            console.log('Auth: Using critical fallback profile in createProfile due to getUser error');
           }
-        }
-      } catch (error: any) {
-        console.error('Auth: Error in fetchProfile:', error)
-        // Always ensure loading state is resolved
-        if (mounted) {
-          setLoading(false)
-        }
-      }
-    }
-
-    const createProfile = async (userId: string) => {
-      if (!mounted) return
-      
-      try {
-        console.log('Auth: Creating profile for user:', userId)
-        
-        const { data: userData, error: userError } = await supabase.auth.getUser()
-        
-        if (userError || !userData.user) {
-          console.error('Auth: Cannot create profile - no user data:', userError)
-          if (mounted) setLoading(false)
-          return
+          return profileSet;
         }
 
+        const currentUser = userDataResponse.user;
         const profileData = {
           id: userId,
-          full_name: userData.user.user_metadata?.full_name || 
-                     userData.user.user_metadata?.name || 
-                     userData.user.email?.split('@')[0] || 
+          full_name: currentUser.user_metadata?.full_name || 
+                     currentUser.user_metadata?.name || 
+                     currentUser.email?.split('@')[0] || 
                      'User',
-          email: userData.user.email || '',
-          role: (userData.user.user_metadata?.role as 'citizen' | 'government_official' | 'admin') || 'citizen'
-        }
+          email: currentUser.email || '',
+          role: (currentUser.user_metadata?.role as 'citizen' | 'government_official' | 'admin') || 'citizen'
+        };
 
-        console.log('Auth: Inserting profile with data:', profileData)
+        console.log('Auth: Inserting profile with data:', profileData);
 
         const { data: newProfile, error: createError } = await supabase
           .from('profiles')
           .insert(profileData)
           .select()
-          .single()
+          .single(); // Using single() here, ensure RLS allows reading the newly inserted row.
         
         if (createError) {
-          console.error('Auth: Error creating profile:', createError)
-          // Create a fallback profile if database insert fails
+          console.error('Auth: Error creating profile in DB:', createError);
           const fallbackProfile: Profile = {
             id: userId,
             full_name: profileData.full_name,
@@ -119,91 +94,181 @@ export function AuthProvider({ children }: { children: ReactNode }) {
             role: profileData.role,
             verified: false,
             created_at: new Date().toISOString()
-          }
+          };
           
           if (mounted) {
-            console.log('Auth: Using fallback profile')
-            setProfile(fallbackProfile)
-            setLoading(false)
+            console.log('Auth: Using fallback profile after DB create error');
+            setProfile(fallbackProfile);
+            profileSet = true;
           }
-          return
+          return profileSet;
         }
 
-        console.log('Auth: Profile created successfully:', newProfile)
-        if (mounted) {
-          setProfile(newProfile)
-          setLoading(false)
+        if (newProfile) {
+          console.log('Auth: Profile created successfully in DB:', newProfile);
+          if (mounted) {
+            setProfile(newProfile);
+            profileSet = true;
+          }
+        } else {
+          console.log('Auth: Profile creation did not return data, using fallback.');
+           const fallbackProfile: Profile = {
+            id: userId,
+            full_name: profileData.full_name,
+            email: profileData.email,
+            role: profileData.role,
+            verified: false,
+            created_at: new Date().toISOString()
+          };
+          if (mounted) {
+            setProfile(fallbackProfile);
+            profileSet = true;
+          }
+        }
+        return profileSet;
+      } catch (error: any) {
+        console.error('Auth: Critical error in createProfile function:', error);
+        if (mounted && !profile) { // Check if profile is still not set
+            const criticalFallbackProfile: Profile = {
+              id: userId,
+              full_name: 'Exception User',
+              email: `user_${userId.substring(0,8)}@exception.com`,
+              role: 'citizen',
+              verified: false,
+              created_at: new Date().toISOString()
+            };
+            setProfile(criticalFallbackProfile);
+            profileSet = true;
+            console.log('Auth: Using critical fallback profile in createProfile catch block');
+        }
+        return profileSet;
+      }
+    };
+
+    const fetchProfile = async (userId: string) => {
+      if (!mounted) return;
+      
+      let profileSuccessfullyRetrievedOrCreated = false;
+      try {
+        console.log('Auth: Fetching profile for user:', userId);
+
+        const { data, error } = await supabase
+          .from('profiles')
+          .select('*')
+          .eq('id', userId)
+          .maybeSingle();
+
+        console.log('Auth: Profile query completed:', { data: !!data, error: !!error });
+
+        if (error) {
+          console.error('Auth: Error fetching profile from DB:', error);
+          // Do not throw; proceed to attempt creation or use fallback.
+        }
+
+        if (data) {
+          console.log('Auth: Profile found in DB:', data.full_name);
+          if (mounted) {
+            setProfile(data);
+            profileSuccessfullyRetrievedOrCreated = true;
+          }
+        } else {
+          console.log('Auth: No profile found in DB, attempting to create new profile.');
+          profileSuccessfullyRetrievedOrCreated = await createProfile(userId);
+          if (profileSuccessfullyRetrievedOrCreated) {
+            console.log('Auth: Profile creation attempt resulted in profile being set.');
+          } else {
+            console.log('Auth: Profile creation attempt did not result in profile being set.');
+          }
         }
       } catch (error: any) {
-        console.error('Auth: Error creating profile:', error)
-        // Always ensure loading state is resolved
+        console.error('Auth: Critical error in fetchProfile function:', error);
+        // If a truly unexpected error occurs, we might still want a fallback.
+        if (mounted && !profile) { // Check if profile is still not set
+            const emergencyFallback: Profile = {
+              id: userId, full_name: 'Emergency User', email: '', role: 'citizen', created_at: new Date().toISOString()
+            };
+            setProfile(emergencyFallback);
+            profileSuccessfullyRetrievedOrCreated = true;
+            console.log('Auth: Set emergency fallback in fetchProfile catch.');
+        }
+      } finally {
         if (mounted) {
-          setLoading(false)
+          console.log('Auth: fetchProfile finally block. Profile set status:', profileSuccessfullyRetrievedOrCreated, 'Current profile state name:', profile?.full_name);
+          setLoading(false); 
+          console.log('Auth: setLoading(false) in fetchProfile finally. New loading state:', false);
         }
       }
-    }
+    };
 
-    // Get initial session
     const initializeAuth = async () => {
       try {
-        const { data: { session }, error } = await supabase.auth.getSession()
+        const { data: { session }, error } = await supabase.auth.getSession();
         
         console.log('Auth Provider: Initial session check:', { 
           sessionExists: !!session, 
           userId: session?.user?.id,
-          error 
-        })
+          error: !!error 
+        });
         
         if (error) {
-          console.error('Auth Provider: Error getting session:', error)
-          if (mounted) setLoading(false)
-          return
+          console.error('Auth Provider: Error getting session:', error);
+          if (mounted) setLoading(false);
+          return;
         }
         
         if (mounted) {
-          setUser(session?.user ?? null)
+          setUser(session?.user ?? null);
           if (session?.user) {
-            console.log('Auth Provider: Found existing session, fetching profile...')
-            await fetchProfile(session.user.id)
+            console.log('Auth Provider: Found existing session, fetching profile for user:', session.user.id);
+            await fetchProfile(session.user.id); // fetchProfile will handle setLoading(false)
           } else {
-            console.log('Auth Provider: No existing session')
-            setLoading(false)
+            console.log('Auth Provider: No existing session.');
+            setLoading(false);
           }
         }
       } catch (error) {
-        console.error('Auth Provider: Session fetch failed:', error)
-        if (mounted) setLoading(false)
+        console.error('Auth Provider: Session fetch failed:', error);
+        if (mounted) setLoading(false);
       }
-    }
+    };
 
-    initializeAuth()
+    initializeAuth();
 
-    // Listen for auth changes
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
-      async (event, session) => {
-        console.log('Auth state changed:', event, 'User ID:', session?.user?.id)
+      (event, session) => { // Removed async
+        console.log('Auth state changed:', event, 'User ID:', session?.user?.id);
         
-        if (!mounted) return
+        if (!mounted) {
+          console.log('Auth: onAuthStateChange - component unmounted, skipping updates.');
+          return;
+        }
         
-        setUser(session?.user ?? null)
+        setUser(session?.user ?? null); // Synchronous update
         
         if (session?.user) {
-          console.log('Auth: User signed in, fetching profile...')
-          await fetchProfile(session.user.id)
+          console.log('Auth: User event (signed in/token refreshed), queueing profile fetch for user:', session.user.id);
+          setTimeout(async () => {
+            if (mounted) { // Re-check mounted inside timeout
+              console.log('Auth: Executing deferred profile fetch for user:', session.user!.id);
+              await fetchProfile(session.user!.id); // fetchProfile handles its own setLoading(false)
+            } else {
+              console.log('Auth: Component unmounted before deferred profile fetch for user:', session.user!.id);
+            }
+          }, 0);
         } else {
-          console.log('Auth: User signed out')
-          setProfile(null)
-          setLoading(false)
+          console.log('Auth: User signed out event. Clearing profile and setting loading to false.');
+          setProfile(null);
+          setLoading(false); 
         }
       }
-    )
+    );
 
     return () => {
-      console.log('Auth Provider: Cleanup')
-      mounted = false
-      subscription.unsubscribe()
-    }
-  }, [])
+      console.log('Auth Provider: Cleanup. Unsubscribing from auth state changes.');
+      mounted = false;
+      subscription.unsubscribe();
+    };
+  }, []);
 
   const signIn = async (email: string, password: string) => {
     try {
@@ -273,7 +338,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     try {
       const { error } = await supabase.auth.signOut()
       if (error) throw error
-
+      // Profile and loading state will be handled by onAuthStateChange
       toast({
         title: "Goodbye!",
         description: "You have been signed out successfully.",
@@ -296,16 +361,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     signOut,
   }
 
-  console.log('Auth Provider: Current state:', { 
+  console.log('Auth Provider: Rendering with state:', { 
     user: user?.id, 
-    profile: profile ? {
-      id: profile.id,
-      full_name: profile.full_name,
-      email: profile.email,
-      role: profile.role
-    } : null, 
+    profileName: profile?.full_name, 
+    profileRole: profile?.role,
     loading 
-  })
+  });
 
   return (
     <AuthContext.Provider value={value}>
