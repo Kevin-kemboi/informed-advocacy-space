@@ -81,12 +81,18 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     try {
       console.log('Auth: Fetching profile from database...')
 
-      // Directly fetch the profile without connection test
-      const { data, error } = await supabase
+      // Create a promise with timeout
+      const profilePromise = supabase
         .from('profiles')
         .select('*')
         .eq('id', userId)
         .maybeSingle()
+
+      const timeoutPromise = new Promise((_, reject) =>
+        setTimeout(() => reject(new Error('Profile fetch timeout')), 10000)
+      )
+
+      const { data, error } = await Promise.race([profilePromise, timeoutPromise]) as any
 
       console.log('Auth: Profile query result:', { data, error })
 
@@ -98,8 +104,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       if (!data) {
         console.log('Auth: No profile found, creating new profile...')
         
-        // Get user data for creating profile
-        const { data: userData, error: userError } = await supabase.auth.getUser()
+        // Get user data for creating profile with timeout
+        const userPromise = supabase.auth.getUser()
+        const userTimeoutPromise = new Promise((_, reject) =>
+          setTimeout(() => reject(new Error('User fetch timeout')), 5000)
+        )
+
+        const { data: userData, error: userError } = await Promise.race([userPromise, userTimeoutPromise]) as any
         console.log('Auth: User data for profile creation:', { userData: userData?.user?.email, userError })
         
         if (userError) {
@@ -121,11 +132,17 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
         console.log('Auth: Creating new profile with data:', profileData)
 
-        const { data: newProfile, error: createError } = await supabase
+        const createPromise = supabase
           .from('profiles')
           .insert(profileData)
           .select()
           .single()
+
+        const createTimeoutPromise = new Promise((_, reject) =>
+          setTimeout(() => reject(new Error('Profile creation timeout')), 10000)
+        )
+
+        const { data: newProfile, error: createError } = await Promise.race([createPromise, createTimeoutPromise]) as any
         
         console.log('Auth: Profile creation result:', { newProfile, createError })
         
@@ -147,11 +164,21 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       }
     } catch (error: any) {
       console.error('Auth: Critical error in fetchProfile:', error)
-      toast({
-        title: "Profile Error",
-        description: `Failed to load profile: ${error.message || 'Unknown error'}`,
-        variant: "destructive",
-      })
+      
+      if (error.message === 'Profile fetch timeout' || error.message === 'Profile creation timeout') {
+        toast({
+          title: "Connection Timeout",
+          description: "Database connection is slow. Please refresh the page.",
+          variant: "destructive",
+        })
+      } else {
+        toast({
+          title: "Profile Error",
+          description: `Failed to load profile: ${error.message || 'Unknown error'}`,
+          variant: "destructive",
+        })
+      }
+      
       // Set profile to null but don't keep loading forever
       setProfile(null)
     } finally {
