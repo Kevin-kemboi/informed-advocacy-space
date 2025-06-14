@@ -22,6 +22,7 @@ class RealtimeManager {
     onVotesChange: () => void
   }>()
   private currentUserId: string | null = null
+  private subscriptionAttempted = false
 
   static getInstance(): RealtimeManager {
     if (!RealtimeManager.instance) {
@@ -45,8 +46,8 @@ class RealtimeManager {
     this.callbacks.set(subscriberId, callbacks)
     this.subscribers.add(subscriberId)
 
-    // If we need to create/recreate subscription for new user
-    if (!this.channel || !this.isSubscribed || this.currentUserId !== userId) {
+    // Only create subscription if we don't have one for this user or no subscription exists
+    if (this.currentUserId !== userId || (!this.isSubscribed && !this.subscriptionAttempted)) {
       this.cleanup()
       this.createSubscription(userId)
     }
@@ -66,14 +67,16 @@ class RealtimeManager {
   }
 
   private createSubscription(userId: string) {
-    if (this.isSubscribed && this.channel) {
-      console.log('RealtimeManager: Already subscribed, skipping')
+    // Prevent multiple subscription attempts
+    if (this.subscriptionAttempted && this.currentUserId === userId) {
+      console.log('RealtimeManager: Subscription already attempted for this user')
       return
     }
 
     console.log('RealtimeManager: Creating new subscription for user:', userId)
     
     try {
+      this.subscriptionAttempted = true
       const channelName = `civic-realtime-${userId}-${Date.now()}`
       
       this.channel = supabase
@@ -111,6 +114,7 @@ class RealtimeManager {
           this.notifySubscribers('posts')
         })
 
+      // Subscribe only once per channel
       this.channel.subscribe((status: string) => {
         console.log('RealtimeManager: Subscription status:', status)
         
@@ -121,12 +125,14 @@ class RealtimeManager {
         } else if (status === 'CHANNEL_ERROR' || status === 'TIMED_OUT' || status === 'CLOSED') {
           console.error('RealtimeManager: Subscription failed with status:', status)
           this.isSubscribed = false
+          this.subscriptionAttempted = false
           this.currentUserId = null
         }
       })
       
     } catch (error) {
       console.error('RealtimeManager: Error creating subscription:', error)
+      this.subscriptionAttempted = false
       this.cleanup()
     }
   }
@@ -168,6 +174,7 @@ class RealtimeManager {
     }
     
     this.isSubscribed = false
+    this.subscriptionAttempted = false
     this.currentUserId = null
   }
 }
@@ -181,6 +188,7 @@ export function useRealtimeSubscriptions({
 }: UseRealtimeSubscriptionsProps) {
   const subscriberIdRef = useRef(`subscriber-${Math.random().toString(36).substr(2, 9)}`)
   const managerRef = useRef(RealtimeManager.getInstance())
+  const hasSubscribedRef = useRef(false)
 
   useEffect(() => {
     const subscriberId = subscriberIdRef.current
@@ -188,10 +196,12 @@ export function useRealtimeSubscriptions({
     console.log('useRealtimeSubscriptions: Effect triggered', { 
       subscriberId,
       userId: user?.id, 
-      mounted
+      mounted,
+      hasSubscribed: hasSubscribedRef.current
     })
 
-    if (user && mounted) {
+    if (user && mounted && !hasSubscribedRef.current) {
+      hasSubscribedRef.current = true
       managerRef.current.subscribe(subscriberId, user.id, {
         onPostsChange,
         onPollsChange,
@@ -201,12 +211,29 @@ export function useRealtimeSubscriptions({
 
     return () => {
       console.log('useRealtimeSubscriptions: Cleanup for subscriber:', subscriberId)
+      hasSubscribedRef.current = false
       managerRef.current.unsubscribe(subscriberId)
     }
-  }, [user?.id, mounted, onPostsChange, onPollsChange, onVotesChange])
+  }, [user?.id, mounted]) // Remove callbacks from dependencies to prevent re-subscription
+
+  // Handle callback updates without re-subscribing
+  useEffect(() => {
+    const subscriberId = subscriberIdRef.current
+    if (hasSubscribedRef.current) {
+      // Update callbacks for existing subscription
+      const manager = managerRef.current
+      if (manager['callbacks'] && manager['callbacks'].has(subscriberId)) {
+        manager['callbacks'].set(subscriberId, {
+          onPostsChange,
+          onPollsChange,
+          onVotesChange
+        })
+      }
+    }
+  }, [onPostsChange, onPollsChange, onVotesChange])
 
   return { 
-    isSubscribed: true, // Simplified return since manager handles the state
+    isSubscribed: true,
     channelName: 'managed-by-singleton'
   }
 }
