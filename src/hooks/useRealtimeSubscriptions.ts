@@ -10,6 +10,168 @@ interface UseRealtimeSubscriptionsProps {
   mounted: boolean
 }
 
+// Global singleton to prevent multiple subscriptions
+class RealtimeManager {
+  private static instance: RealtimeManager
+  private channel: any = null
+  private isSubscribed = false
+  private subscribers = new Set<string>()
+  private callbacks = new Map<string, {
+    onPostsChange: () => void
+    onPollsChange: () => void
+    onVotesChange: () => void
+  }>()
+  private currentUserId: string | null = null
+
+  static getInstance(): RealtimeManager {
+    if (!RealtimeManager.instance) {
+      RealtimeManager.instance = new RealtimeManager()
+    }
+    return RealtimeManager.instance
+  }
+
+  subscribe(
+    subscriberId: string, 
+    userId: string, 
+    callbacks: {
+      onPostsChange: () => void
+      onPollsChange: () => void
+      onVotesChange: () => void
+    }
+  ) {
+    console.log('RealtimeManager: Subscribe request from:', subscriberId, 'for user:', userId)
+    
+    // Store callbacks for this subscriber
+    this.callbacks.set(subscriberId, callbacks)
+    this.subscribers.add(subscriberId)
+
+    // If we need to create/recreate subscription for new user
+    if (!this.channel || !this.isSubscribed || this.currentUserId !== userId) {
+      this.cleanup()
+      this.createSubscription(userId)
+    }
+  }
+
+  unsubscribe(subscriberId: string) {
+    console.log('RealtimeManager: Unsubscribe request from:', subscriberId)
+    
+    this.subscribers.delete(subscriberId)
+    this.callbacks.delete(subscriberId)
+
+    // If no more subscribers, cleanup everything
+    if (this.subscribers.size === 0) {
+      console.log('RealtimeManager: No more subscribers, cleaning up')
+      this.cleanup()
+    }
+  }
+
+  private createSubscription(userId: string) {
+    if (this.isSubscribed && this.channel) {
+      console.log('RealtimeManager: Already subscribed, skipping')
+      return
+    }
+
+    console.log('RealtimeManager: Creating new subscription for user:', userId)
+    
+    try {
+      const channelName = `civic-realtime-${userId}-${Date.now()}`
+      
+      this.channel = supabase
+        .channel(channelName)
+        .on('postgres_changes', {
+          event: '*',
+          schema: 'public',
+          table: 'posts'
+        }, (payload) => {
+          console.log('RealtimeManager: Posts table changed:', payload)
+          this.notifySubscribers('posts')
+        })
+        .on('postgres_changes', {
+          event: '*',
+          schema: 'public',
+          table: 'polls'
+        }, (payload) => {
+          console.log('RealtimeManager: Polls table changed:', payload)
+          this.notifySubscribers('polls')
+        })
+        .on('postgres_changes', {
+          event: '*',
+          schema: 'public',
+          table: 'votes'
+        }, (payload) => {
+          console.log('RealtimeManager: Votes table changed:', payload)
+          this.notifySubscribers('votes')
+        })
+        .on('postgres_changes', {
+          event: '*',
+          schema: 'public',
+          table: 'likes'
+        }, (payload) => {
+          console.log('RealtimeManager: Likes table changed:', payload)
+          this.notifySubscribers('posts')
+        })
+
+      this.channel.subscribe((status: string) => {
+        console.log('RealtimeManager: Subscription status:', status)
+        
+        if (status === 'SUBSCRIBED') {
+          this.isSubscribed = true
+          this.currentUserId = userId
+          console.log('RealtimeManager: Successfully subscribed')
+        } else if (status === 'CHANNEL_ERROR' || status === 'TIMED_OUT' || status === 'CLOSED') {
+          console.error('RealtimeManager: Subscription failed with status:', status)
+          this.isSubscribed = false
+          this.currentUserId = null
+        }
+      })
+      
+    } catch (error) {
+      console.error('RealtimeManager: Error creating subscription:', error)
+      this.cleanup()
+    }
+  }
+
+  private notifySubscribers(type: 'posts' | 'polls' | 'votes') {
+    this.callbacks.forEach((callbacks) => {
+      try {
+        switch (type) {
+          case 'posts':
+            callbacks.onPostsChange()
+            break
+          case 'polls':
+            callbacks.onPollsChange()
+            break
+          case 'votes':
+            callbacks.onVotesChange()
+            break
+        }
+      } catch (error) {
+        console.error('RealtimeManager: Error in callback:', error)
+      }
+    })
+  }
+
+  private cleanup() {
+    console.log('RealtimeManager: Cleaning up subscription')
+    
+    if (this.channel) {
+      try {
+        if (this.isSubscribed) {
+          this.channel.unsubscribe()
+        }
+        supabase.removeChannel(this.channel)
+      } catch (error) {
+        console.error('RealtimeManager: Error during cleanup:', error)
+      }
+      
+      this.channel = null
+    }
+    
+    this.isSubscribed = false
+    this.currentUserId = null
+  }
+}
+
 export function useRealtimeSubscriptions({ 
   user, 
   onPostsChange, 
@@ -17,162 +179,34 @@ export function useRealtimeSubscriptions({
   onVotesChange, 
   mounted 
 }: UseRealtimeSubscriptionsProps) {
-  const channelRef = useRef<any>(null)
-  const isSubscribedRef = useRef(false)
-  const currentUserIdRef = useRef<string | null>(null)
-
-  const cleanupSubscription = () => {
-    console.log('useRealtimeSubscriptions: Starting cleanup')
-    
-    if (channelRef.current) {
-      try {
-        // Only unsubscribe if we actually subscribed
-        if (isSubscribedRef.current) {
-          console.log('useRealtimeSubscriptions: Unsubscribing from channel')
-          channelRef.current.unsubscribe()
-        }
-        
-        // Remove the channel from Supabase
-        console.log('useRealtimeSubscriptions: Removing channel')
-        supabase.removeChannel(channelRef.current)
-      } catch (error) {
-        console.error('useRealtimeSubscriptions: Error during cleanup:', error)
-      }
-      
-      channelRef.current = null
-    }
-    
-    isSubscribedRef.current = false
-    currentUserIdRef.current = null
-    console.log('useRealtimeSubscriptions: Cleanup completed')
-  }
-
-  const setupRealtimeSubscription = () => {
-    console.log('useRealtimeSubscriptions: Setting up subscription for user:', user?.id)
-    
-    // Don't setup if we already have an active subscription for this user
-    if (channelRef.current && isSubscribedRef.current && currentUserIdRef.current === user?.id) {
-      console.log('useRealtimeSubscriptions: Subscription already exists for this user')
-      return
-    }
-
-    // Clean up any existing subscription first
-    if (channelRef.current) {
-      console.log('useRealtimeSubscriptions: Cleaning up existing subscription before creating new one')
-      cleanupSubscription()
-    }
-
-    // Create a new channel with a unique name
-    const channelName = `civic-realtime-${user.id}-${Date.now()}`
-    console.log('useRealtimeSubscriptions: Creating new channel:', channelName)
-    
-    try {
-      channelRef.current = supabase
-        .channel(channelName)
-        .on('postgres_changes', {
-          event: '*',
-          schema: 'public',
-          table: 'posts'
-        }, (payload) => {
-          console.log('useRealtimeSubscriptions: Posts table changed:', payload)
-          if (mounted && currentUserIdRef.current === user.id) {
-            onPostsChange()
-          }
-        })
-        .on('postgres_changes', {
-          event: '*',
-          schema: 'public',
-          table: 'polls'
-        }, (payload) => {
-          console.log('useRealtimeSubscriptions: Polls table changed:', payload)
-          if (mounted && currentUserIdRef.current === user.id) {
-            onPollsChange()
-          }
-        })
-        .on('postgres_changes', {
-          event: '*',
-          schema: 'public',
-          table: 'votes'
-        }, (payload) => {
-          console.log('useRealtimeSubscriptions: Votes table changed:', payload)
-          if (mounted && currentUserIdRef.current === user.id) {
-            onVotesChange()
-          }
-        })
-        .on('postgres_changes', {
-          event: '*',
-          schema: 'public',
-          table: 'likes'
-        }, (payload) => {
-          console.log('useRealtimeSubscriptions: Likes table changed:', payload)
-          if (mounted && currentUserIdRef.current === user.id) {
-            onPostsChange()
-          }
-        })
-
-      // Subscribe only once and track the subscription status
-      console.log('useRealtimeSubscriptions: Subscribing to channel...')
-      channelRef.current.subscribe((status) => {
-        console.log('useRealtimeSubscriptions: Subscription status:', status)
-        
-        if (status === 'SUBSCRIBED') {
-          isSubscribedRef.current = true
-          currentUserIdRef.current = user.id
-          console.log('useRealtimeSubscriptions: Successfully subscribed')
-        } else if (status === 'CHANNEL_ERROR' || status === 'TIMED_OUT' || status === 'CLOSED') {
-          console.error('useRealtimeSubscriptions: Subscription failed with status:', status)
-          isSubscribedRef.current = false
-          currentUserIdRef.current = null
-          // Don't cleanup here as it might cause infinite loops
-        }
-      })
-      
-    } catch (error) {
-      console.error('useRealtimeSubscriptions: Error setting up subscription:', error)
-      cleanupSubscription()
-    }
-  }
+  const subscriberIdRef = useRef(`subscriber-${Math.random().toString(36).substr(2, 9)}`)
+  const managerRef = useRef(RealtimeManager.getInstance())
 
   useEffect(() => {
+    const subscriberId = subscriberIdRef.current
+    
     console.log('useRealtimeSubscriptions: Effect triggered', { 
+      subscriberId,
       userId: user?.id, 
-      mounted, 
-      hasChannel: !!channelRef.current,
-      isSubscribed: isSubscribedRef.current,
-      currentUser: currentUserIdRef.current
+      mounted
     })
 
     if (user && mounted) {
-      // Only setup if we don't have a subscription for this user
-      if (!channelRef.current || !isSubscribedRef.current || currentUserIdRef.current !== user.id) {
-        setupRealtimeSubscription()
-      }
-    } else if (!user) {
-      // Clean up when user logs out
-      console.log('useRealtimeSubscriptions: User logged out, cleaning up')
-      cleanupSubscription()
+      managerRef.current.subscribe(subscriberId, user.id, {
+        onPostsChange,
+        onPollsChange,
+        onVotesChange
+      })
     }
 
-    // Cleanup function for when component unmounts or user changes
     return () => {
-      if (!user || currentUserIdRef.current !== user?.id) {
-        console.log('useRealtimeSubscriptions: Effect cleanup triggered')
-        cleanupSubscription()
-      }
+      console.log('useRealtimeSubscriptions: Cleanup for subscriber:', subscriberId)
+      managerRef.current.unsubscribe(subscriberId)
     }
-  }, [user?.id, mounted])
-
-  // Additional cleanup on unmount
-  useEffect(() => {
-    return () => {
-      console.log('useRealtimeSubscriptions: Component unmounting, final cleanup')
-      cleanupSubscription()
-    }
-  }, [])
+  }, [user?.id, mounted, onPostsChange, onPollsChange, onVotesChange])
 
   return { 
-    cleanupSubscription,
-    isSubscribed: isSubscribedRef.current,
-    channelName: channelRef.current?.topic
+    isSubscribed: true, // Simplified return since manager handles the state
+    channelName: 'managed-by-singleton'
   }
 }
