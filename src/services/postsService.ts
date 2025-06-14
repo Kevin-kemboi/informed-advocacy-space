@@ -14,12 +14,12 @@ export class PostsService {
     this.isFetching = true
     
     try {
-      // Single query to get all posts with profiles using a join
+      // Single query to get all posts with profiles using the correct relationship
       const { data: postsData, error: postsError } = await supabase
         .from('posts')
         .select(`
           *,
-          profiles!posts_user_id_fkey (
+          profiles (
             id,
             full_name,
             email,
@@ -42,7 +42,7 @@ export class PostsService {
         .from('posts')
         .select(`
           *,
-          profiles!posts_user_id_fkey (
+          profiles (
             id,
             full_name,
             email,
