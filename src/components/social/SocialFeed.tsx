@@ -5,12 +5,15 @@ import { Button } from "@/components/ui/button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { PostComposer } from "./PostComposer";
 import { PollComposer } from "./PollComposer";
-import { PostCard } from "./PostCard";
+import { EnhancedPostCard } from "./EnhancedPostCard";
 import { PollCard } from "./PollCard";
 import { Plus, Filter, Loader2, RefreshCw } from "lucide-react";
 import { usePosts } from "@/hooks/usePosts";
 import { useSocialPolls } from "@/hooks/useSocialPolls";
 import { useAuth } from "@/hooks/useAuth";
+import { AnimatedList } from "@/components/ui/animated-list";
+import { GradientText } from "@/components/ui/gradient-text";
+import { TiltedCard } from "@/components/ui/tilted-card";
 
 export function SocialFeed() {
   const [showPostComposer, setShowPostComposer] = useState(false);
@@ -67,11 +70,13 @@ export function SocialFeed() {
 
   return (
     <div className="max-w-2xl mx-auto space-y-6">
-      {/* Composer Section */}
-      <Card className="bg-gradient-to-r from-blue-50 to-purple-50 border-blue-200">
+      {/* Enhanced Composer Section */}
+      <TiltedCard className="bg-gradient-to-r from-blue-50 to-purple-50 border-blue-200">
         <CardHeader className="pb-4">
           <div className="flex justify-between items-center mb-3">
-            <h2 className="text-xl font-semibold">Community Feed</h2>
+            <h2 className="text-xl font-semibold">
+              <GradientText>Community Feed</GradientText>
+            </h2>
             <Button 
               variant="ghost" 
               size="sm"
@@ -117,7 +122,7 @@ export function SocialFeed() {
             </div>
           )}
         </CardHeader>
-      </Card>
+      </TiltedCard>
 
       {/* Filter Tabs */}
       <Tabs value={feedFilter} onValueChange={(value) => setFeedFilter(value as any)}>
@@ -151,18 +156,17 @@ export function SocialFeed() {
               </CardContent>
             </Card>
           ) : (
-            <>
-              {/* Combined and sorted content */}
+            <AnimatedList staggerDelay={0.05}>
               {[...posts, ...polls]
                 .sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime())
                 .map((item) => (
                   'question' in item ? (
                     <PollCard key={`poll-${item.id}`} poll={item} />
                   ) : (
-                    <PostCard key={`post-${item.id}`} post={item} />
+                    <EnhancedPostCard key={`post-${item.id}`} post={item} />
                   )
                 ))}
-            </>
+            </AnimatedList>
           )}
         </TabsContent>
 
@@ -189,9 +193,11 @@ export function SocialFeed() {
               </CardContent>
             </Card>
           ) : (
-            posts.map((post) => (
-              <PostCard key={post.id} post={post} />
-            ))
+            <AnimatedList staggerDelay={0.05}>
+              {posts.map((post) => (
+                <EnhancedPostCard key={post.id} post={post} />
+              ))}
+            </AnimatedList>
           )}
         </TabsContent>
 
@@ -218,9 +224,11 @@ export function SocialFeed() {
               </CardContent>
             </Card>
           ) : (
-            polls.map((poll) => (
-              <PollCard key={poll.id} poll={poll} />
-            ))
+            <AnimatedList staggerDelay={0.05}>
+              {polls.map((poll) => (
+                <PollCard key={poll.id} poll={poll} />
+              ))}
+            </AnimatedList>
           )}
         </TabsContent>
       </Tabs>

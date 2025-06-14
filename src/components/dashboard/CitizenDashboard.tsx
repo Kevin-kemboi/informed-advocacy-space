@@ -7,6 +7,11 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { MessageSquare, Vote, LogOut, Users, TrendingUp, Home } from "lucide-react";
 import { SocialFeed } from "@/components/social/SocialFeed";
 import { AIChat } from "@/components/ai/AIChat";
+import { GradientText } from "@/components/ui/gradient-text";
+import { CountUp } from "@/components/ui/count-up";
+import { AuroraBackground } from "@/components/ui/aurora-background";
+import { ParticlesBackground } from "@/components/ui/particles-background";
+import { TiltedCard } from "@/components/ui/tilted-card";
 
 interface CitizenDashboardProps {
   user: any;
@@ -18,11 +23,9 @@ export function CitizenDashboard({ user, onLogout }: CitizenDashboardProps) {
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-blue-50 via-purple-50 to-pink-50 relative overflow-hidden">
-      {/* Animated background elements */}
-      <div className="absolute inset-0 overflow-hidden pointer-events-none">
-        <div className="absolute -top-40 -right-40 w-80 h-80 bg-gradient-to-br from-blue-400/20 to-purple-400/20 rounded-full blur-3xl animate-pulse"></div>
-        <div className="absolute -bottom-40 -left-40 w-80 h-80 bg-gradient-to-br from-pink-400/20 to-blue-400/20 rounded-full blur-3xl animate-pulse" style={{ animationDelay: '2s' }}></div>
-      </div>
+      {/* Enhanced Background */}
+      <AuroraBackground />
+      <ParticlesBackground particleCount={30} color="#3b82f6" />
 
       {/* Header */}
       <header className="bg-white/80 backdrop-blur-lg shadow-sm border-b sticky top-0 z-50 transition-all duration-300">
@@ -32,8 +35,8 @@ export function CitizenDashboard({ user, onLogout }: CitizenDashboardProps) {
               <Home className="h-6 w-6 text-white" />
             </div>
             <div>
-              <h1 className="text-2xl font-bold bg-gradient-to-r from-blue-600 to-purple-600 bg-clip-text text-transparent">
-                CivicConnect
+              <h1 className="text-2xl font-bold">
+                <GradientText variant="civic">CivicConnect</GradientText>
               </h1>
               <p className="text-sm text-gray-600">Welcome back, {user?.full_name || 'User'}</p>
             </div>
@@ -54,9 +57,9 @@ export function CitizenDashboard({ user, onLogout }: CitizenDashboardProps) {
       </header>
 
       <div className="container mx-auto px-4 py-8">
-        {/* Quick Stats */}
+        {/* Enhanced Stats Cards */}
         <div className="grid md:grid-cols-3 gap-6 mb-8">
-          <Card className="bg-gradient-to-r from-blue-500 to-blue-600 text-white shadow-lg hover:shadow-xl transition-all duration-300 hover:scale-105">
+          <TiltedCard className="bg-gradient-to-r from-blue-500 to-blue-600 text-white shadow-lg hover:shadow-xl transition-all duration-300">
             <CardHeader className="pb-3">
               <CardTitle className="text-lg flex items-center">
                 <Users className="h-5 w-5 mr-2 animate-pulse" />
@@ -64,12 +67,14 @@ export function CitizenDashboard({ user, onLogout }: CitizenDashboardProps) {
               </CardTitle>
             </CardHeader>
             <CardContent>
-              <div className="text-3xl font-bold">1,247</div>
+              <div className="text-3xl font-bold">
+                <CountUp value={1247} duration={2} />
+              </div>
               <p className="text-blue-100">Active citizens</p>
             </CardContent>
-          </Card>
+          </TiltedCard>
 
-          <Card className="bg-gradient-to-r from-green-500 to-green-600 text-white shadow-lg hover:shadow-xl transition-all duration-300 hover:scale-105">
+          <TiltedCard className="bg-gradient-to-r from-green-500 to-green-600 text-white shadow-lg hover:shadow-xl transition-all duration-300">
             <CardHeader className="pb-3">
               <CardTitle className="text-lg flex items-center">
                 <Vote className="h-5 w-5 mr-2 animate-pulse" />
@@ -77,12 +82,14 @@ export function CitizenDashboard({ user, onLogout }: CitizenDashboardProps) {
               </CardTitle>
             </CardHeader>
             <CardContent>
-              <div className="text-3xl font-bold">23</div>
+              <div className="text-3xl font-bold">
+                <CountUp value={23} duration={1.5} />
+              </div>
               <p className="text-green-100">Awaiting your vote</p>
             </CardContent>
-          </Card>
+          </TiltedCard>
 
-          <Card className="bg-gradient-to-r from-purple-500 to-purple-600 text-white shadow-lg hover:shadow-xl transition-all duration-300 hover:scale-105">
+          <TiltedCard className="bg-gradient-to-r from-purple-500 to-purple-600 text-white shadow-lg hover:shadow-xl transition-all duration-300">
             <CardHeader className="pb-3">
               <CardTitle className="text-lg flex items-center">
                 <TrendingUp className="h-5 w-5 mr-2 animate-pulse" />
@@ -90,10 +97,12 @@ export function CitizenDashboard({ user, onLogout }: CitizenDashboardProps) {
               </CardTitle>
             </CardHeader>
             <CardContent>
-              <div className="text-3xl font-bold">95</div>
+              <div className="text-3xl font-bold">
+                <CountUp value={95} duration={2.5} />
+              </div>
               <p className="text-purple-100">Community rating</p>
             </CardContent>
-          </Card>
+          </TiltedCard>
         </div>
 
         {/* Main Content */}
@@ -115,11 +124,11 @@ export function CitizenDashboard({ user, onLogout }: CitizenDashboardProps) {
 
           <TabsContent value="ai-chat" className="animate-fade-in">
             <div className="max-w-4xl mx-auto">
-              <Card className="bg-white/80 backdrop-blur-lg shadow-lg hover:shadow-xl transition-all duration-300">
+              <TiltedCard className="bg-white/80 backdrop-blur-lg shadow-lg hover:shadow-xl transition-all duration-300">
                 <CardHeader>
                   <CardTitle className="flex items-center gap-2">
                     <MessageSquare className="h-5 w-5 text-blue-600" />
-                    AI Civic Assistant
+                    <GradientText variant="government">AI Civic Assistant</GradientText>
                   </CardTitle>
                   <CardDescription>
                     Ask questions about government policies, get help understanding civic processes, or learn about your community.
@@ -128,7 +137,7 @@ export function CitizenDashboard({ user, onLogout }: CitizenDashboardProps) {
                 <CardContent>
                   <AIChat />
                 </CardContent>
-              </Card>
+              </TiltedCard>
             </div>
           </TabsContent>
         </Tabs>
