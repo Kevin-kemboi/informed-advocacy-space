@@ -1,3 +1,4 @@
+
 import { useState, useEffect, useRef } from 'react'
 import { supabase, Post } from '@/lib/supabase'
 import { useAuth } from '@/hooks/useAuth'
@@ -14,8 +15,8 @@ export function usePosts() {
   useEffect(() => {
     console.log('usePosts: Initializing with user:', user?.id)
     fetchPosts()
-    
-    // Clean up any existing subscription first
+
+    // Clean up existing subscription
     if (channelRef.current && !isSubscribedRef.current) {
       try {
         supabase.removeChannel(channelRef.current)
@@ -26,9 +27,8 @@ export function usePosts() {
       isSubscribedRef.current = false
     }
 
-    // Only create subscription if we don't already have one
+    // Subscribe to real-time updates
     if (!channelRef.current && !isSubscribedRef.current) {
-      // Create new subscription with a unique channel name
       channelRef.current = supabase
         .channel(`posts-realtime-${Date.now()}-${Math.random()}`)
         .on('postgres_changes', {
@@ -66,10 +66,20 @@ export function usePosts() {
       console.log('Fetching posts...')
       setLoading(true)
       
-      // First try without profiles join to see if basic query works
+      // Fetch main posts (not replies) with profiles
       const { data: postsData, error: postsError } = await supabase
         .from('posts')
-        .select('*')
+        .select(`
+          *,
+          profiles (
+            full_name,
+            email,
+            role,
+            profile_pic_url,
+            verified
+          )
+        `)
+        .is('parent_id', null)
         .eq('status', 'active')
         .order('created_at', { ascending: false })
 
@@ -78,32 +88,34 @@ export function usePosts() {
         throw postsError
       }
 
-      // If we have posts, try to get profiles separately
-      if (postsData && postsData.length > 0) {
-        const userIds = [...new Set(postsData.map(post => post.user_id))]
-        
-        const { data: profilesData, error: profilesError } = await supabase
-          .from('profiles')
-          .select('id, full_name, email, role')
-          .in('id', userIds)
+      // For each post, fetch its replies
+      const postsWithReplies = await Promise.all(
+        (postsData || []).map(async (post) => {
+          const { data: repliesData } = await supabase
+            .from('posts')
+            .select(`
+              *,
+              profiles (
+                full_name,
+                email,
+                role,
+                profile_pic_url,
+                verified
+              )
+            `)
+            .eq('parent_id', post.id)
+            .eq('status', 'active')
+            .order('created_at', { ascending: true })
 
-        if (profilesError) {
-          console.error('Error fetching profiles:', profilesError)
-          // Continue without profiles if there's an error
-        }
+          return {
+            ...post,
+            replies: repliesData || []
+          }
+        })
+      )
 
-        // Combine posts with profiles
-        const postsWithProfiles = postsData.map(post => ({
-          ...post,
-          profiles: profilesData?.find(profile => profile.id === post.user_id) || null
-        }))
-
-        console.log('Posts fetched successfully:', postsWithProfiles.length)
-        setPosts(postsWithProfiles)
-      } else {
-        console.log('No posts found')
-        setPosts([])
-      }
+      console.log('Posts fetched successfully:', postsWithReplies.length)
+      setPosts(postsWithReplies)
     } catch (error) {
       console.error('Error fetching posts:', error)
       toast({
@@ -117,16 +129,29 @@ export function usePosts() {
     }
   }
 
-  const createPost = async (content: string, mediaUrls: string[] = []) => {
+  const createPost = async (postData: {
+    content: string
+    category: string
+    post_type: string
+    media_urls: string[]
+    location?: string
+    hashtags?: string[]
+    parent_id?: string
+  }) => {
     try {
       if (!user) throw new Error('User not authenticated')
 
-      console.log('Creating post with content:', content)
+      console.log('Creating post:', postData)
       const { data, error } = await supabase
         .from('posts')
         .insert({
-          content,
-          media_urls: mediaUrls,
+          content: postData.content,
+          category: postData.category,
+          post_type: postData.post_type,
+          media_urls: postData.media_urls,
+          location: postData.location,
+          hashtags: postData.hashtags,
+          parent_id: postData.parent_id,
           user_id: user.id
         })
         .select()
@@ -139,8 +164,8 @@ export function usePosts() {
 
       console.log('Post created successfully:', data)
       toast({
-        title: "Post Created",
-        description: "Your post has been shared successfully."
+        title: postData.parent_id ? "Reply Posted" : "Post Created",
+        description: postData.parent_id ? "Your reply has been posted successfully." : "Your post has been created successfully."
       })
 
       // Refresh posts after creating
@@ -157,122 +182,10 @@ export function usePosts() {
     }
   }
 
-  const likePost = async (postId: string) => {
-    try {
-      if (!user) throw new Error('User not authenticated')
-
-      console.log('Liking post:', postId)
-      const { error } = await supabase
-        .from('likes')
-        .insert({
-          post_id: postId,
-          user_id: user.id
-        })
-
-      if (error) {
-        console.error('Error liking post:', error)
-        throw error
-      }
-
-      // Use the database function to increment likes count
-      const { error: incrementError } = await supabase
-        .rpc('increment_likes', { post_id: postId })
-
-      if (incrementError) {
-        console.error('Error incrementing likes count:', incrementError)
-      }
-      
-      console.log('Post liked successfully')
-      toast({
-        title: "Post Liked",
-        description: "You liked this post."
-      })
-
-      // Refresh posts to show updated like count
-      fetchPosts()
-    } catch (error: any) {
-      console.error('Error in likePost:', error)
-      toast({
-        title: "Error",
-        description: error.message,
-        variant: "destructive"
-      })
-    }
-  }
-
-  const flagPost = async (postId: string, reason?: string) => {
-    try {
-      if (!user) throw new Error('User not authenticated')
-
-      console.log('Flagging post:', postId)
-      const { error } = await supabase
-        .from('flags')
-        .insert({
-          post_id: postId,
-          user_id: user.id,
-          reason
-        })
-
-      if (error) {
-        console.error('Error flagging post:', error)
-        throw error
-      }
-
-      console.log('Post flagged successfully')
-      toast({
-        title: "Post Flagged",
-        description: "This post has been reported for review."
-      })
-    } catch (error: any) {
-      console.error('Error in flagPost:', error)
-      toast({
-        title: "Error",
-        description: error.message,
-        variant: "destructive"
-      })
-    }
-  }
-
-  const deletePost = async (postId: string) => {
-    try {
-      if (!user) throw new Error('User not authenticated')
-
-      console.log('Deleting post:', postId)
-      const { error } = await supabase
-        .from('posts')
-        .delete()
-        .eq('id', postId)
-
-      if (error) {
-        console.error('Error deleting post:', error)
-        throw error
-      }
-
-      console.log('Post deleted successfully')
-      toast({
-        title: "Post Deleted",
-        description: "The post has been removed successfully."
-      })
-
-      // Refresh posts after deleting
-      fetchPosts()
-    } catch (error: any) {
-      console.error('Error in deletePost:', error)
-      toast({
-        title: "Error",
-        description: error.message,
-        variant: "destructive"
-      })
-    }
-  }
-
   return {
     posts,
     loading,
     createPost,
-    likePost,
-    flagPost,
-    deletePost,
     refetch: fetchPosts
   }
 }

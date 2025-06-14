@@ -1,6 +1,5 @@
 
 import { useAuth } from "@/hooks/useAuth";
-import { CitizenDashboard } from "@/components/dashboard/CitizenDashboard";
 import { OfficialDashboard } from "@/components/dashboard/OfficialDashboard";
 import { AdminDashboard } from "@/components/dashboard/AdminDashboard";
 import { AuthModal } from "@/components/auth/AuthModal";
@@ -10,7 +9,7 @@ import { AnimatedBackground } from "@/components/ui/animated-background";
 import { AnimatedText } from "@/components/ui/animated-text";
 
 const Index = () => {
-  const { user, loading } = useAuth();
+  const { user, profile, loading } = useAuth();
 
   if (loading) {
     return (
@@ -85,19 +84,16 @@ const Index = () => {
     );
   }
 
-  // For authenticated users, show the Twitter-style feed as the main interface
-  if (user.role === 'citizen') {
-    return <TwitterFeed />;
-  }
-
-  if (user.role === 'government_official') {
+  // Show appropriate dashboard based on user role
+  if (profile?.role === 'government_official') {
     return <OfficialDashboard user={user} onLogout={() => window.location.reload()} />;
   }
 
-  if (user.role === 'admin') {
+  if (profile?.role === 'admin') {
     return <AdminDashboard user={user} onLogout={() => window.location.reload()} />;
   }
 
+  // Default to TwitterFeed for citizens and any other roles
   return <TwitterFeed />;
 };
 
