@@ -11,15 +11,25 @@ import { PollComposer } from '@/components/social/PollComposer'
 import { PollCard } from '@/components/social/PollCard'
 import { usePosts } from '@/hooks/usePosts'
 import { useSocialPolls } from '@/hooks/useSocialPolls'
+import { useRealtimeSubscriptions } from '@/hooks/useRealtimeSubscriptions'
 import { useAuth } from '@/hooks/useAuth'
 import { Plus, MessageSquare, BarChart3 } from 'lucide-react'
 
 export function SocialFeed() {
-  const { posts, loading: postsLoading } = usePosts()
-  const { polls, loading: pollsLoading } = useSocialPolls()
-  const { profile } = useAuth()
+  const { posts, loading: postsLoading, refetch: refetchPosts } = usePosts()
+  const { polls, loading: pollsLoading, refetch: refetchPolls, refetchVotes } = useSocialPolls()
+  const { user, profile } = useAuth()
   const [showPostComposer, setShowPostComposer] = useState(false)
   const [showPollComposer, setShowPollComposer] = useState(false)
+
+  // Set up unified realtime subscriptions
+  useRealtimeSubscriptions({
+    user,
+    onPostsChange: refetchPosts,
+    onPollsChange: refetchPolls,
+    onVotesChange: refetchVotes,
+    mounted: true
+  })
 
   const canCreate = profile && ['citizen', 'government_official'].includes(profile.role)
   const isLoading = postsLoading || pollsLoading

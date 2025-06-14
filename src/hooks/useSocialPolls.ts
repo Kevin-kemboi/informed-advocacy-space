@@ -4,7 +4,6 @@ import { Poll, Vote } from '@/lib/supabase'
 import { useAuth } from '@/hooks/useAuth'
 import { useToast } from '@/hooks/use-toast'
 import { PollsService } from '@/services/pollsService'
-import { usePollsSubscription } from '@/hooks/usePollsSubscription'
 
 export function useSocialPolls() {
   const [polls, setPolls] = useState<Poll[]>([])
@@ -57,18 +56,6 @@ export function useSocialPolls() {
       console.error('Error fetching user votes:', error)
     }
   }
-
-  const handleDataChange = () => {
-    fetchPolls()
-    if (user) fetchUserVotes()
-  }
-
-  // Setup subscriptions
-  usePollsSubscription({
-    user,
-    onDataChange: handleDataChange,
-    mounted: mountedRef.current
-  })
 
   useEffect(() => {
     console.log('useSocialPolls: Initializing with user:', user?.id)
@@ -146,6 +133,7 @@ export function useSocialPolls() {
     createPoll,
     submitVote,
     hasUserVoted,
-    refetch: fetchPolls
+    refetch: fetchPolls,
+    refetchVotes: fetchUserVotes
   }
 }

@@ -1,3 +1,4 @@
+
 import { useState, useEffect, useRef } from 'react'
 import { supabase, Post } from '@/lib/supabase'
 import { useAuth } from '@/hooks/useAuth'
@@ -9,9 +10,7 @@ export function usePosts() {
   const [loading, setLoading] = useState(true)
   const { user } = useAuth()
   const { toast } = useToast()
-  const channelRef = useRef<any>(null)
   const mountedRef = useRef(true)
-  const subscriptionActiveRef = useRef(false)
 
   useEffect(() => {
     mountedRef.current = true
@@ -23,73 +22,7 @@ export function usePosts() {
   useEffect(() => {
     console.log('usePosts: Initializing with user:', user?.id)
     fetchPosts()
-
-    // Only setup subscription once and when user is available
-    if (user && !subscriptionActiveRef.current) {
-      setupRealtimeSubscription()
-    }
-
-    return () => {
-      cleanupSubscription()
-    }
   }, [user?.id])
-
-  const cleanupSubscription = () => {
-    if (channelRef.current) {
-      console.log('usePosts: Cleaning up subscription')
-      try {
-        supabase.removeChannel(channelRef.current)
-      } catch (error) {
-        console.log('usePosts: Error during cleanup:', error)
-      }
-      channelRef.current = null
-      subscriptionActiveRef.current = false
-    }
-  }
-
-  const setupRealtimeSubscription = () => {
-    // Prevent multiple subscriptions
-    if (subscriptionActiveRef.current || channelRef.current) {
-      console.log('usePosts: Subscription already active, skipping')
-      return
-    }
-
-    const channelName = `posts-feed-${user?.id || 'anon'}-${Date.now()}`
-    console.log('usePosts: Setting up subscription:', channelName)
-    
-    try {
-      channelRef.current = supabase
-        .channel(channelName)
-        .on('postgres_changes', {
-          event: '*',
-          schema: 'public',
-          table: 'posts'
-        }, (payload) => {
-          console.log('usePosts: Posts table changed:', payload.eventType)
-          
-          if (mountedRef.current) {
-            // Debounce the fetch to avoid rapid successive calls
-            setTimeout(() => {
-              if (mountedRef.current) {
-                fetchPosts()
-              }
-            }, 500)
-          }
-        })
-        .subscribe((status) => {
-          console.log('usePosts: Subscription status:', status)
-          if (status === 'SUBSCRIBED') {
-            subscriptionActiveRef.current = true
-          } else if (status === 'CHANNEL_ERROR' || status === 'TIMED_OUT' || status === 'CLOSED') {
-            console.error('usePosts: Subscription failed, cleaning up')
-            cleanupSubscription()
-          }
-        })
-    } catch (error) {
-      console.error('usePosts: Error setting up subscription:', error)
-      cleanupSubscription()
-    }
-  }
 
   const fetchPosts = async () => {
     try {
