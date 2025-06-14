@@ -1,5 +1,5 @@
 
-import React, { useState } from 'react'
+import React, { useState, useRef, useEffect } from 'react'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Skeleton } from '@/components/ui/skeleton'
@@ -21,14 +21,34 @@ export function SocialFeed() {
   const { user, profile } = useAuth()
   const [showPostComposer, setShowPostComposer] = useState(false)
   const [showPollComposer, setShowPollComposer] = useState(false)
+  const mountedRef = useRef(true)
 
-  // Set up unified realtime subscriptions
+  useEffect(() => {
+    mountedRef.current = true
+    return () => {
+      mountedRef.current = false
+    }
+  }, [])
+
+  // Set up unified realtime subscriptions only when we have a user and component is mounted
   useRealtimeSubscriptions({
     user,
-    onPostsChange: refetchPosts,
-    onPollsChange: refetchPolls,
-    onVotesChange: refetchVotes,
-    mounted: true
+    onPostsChange: () => {
+      if (mountedRef.current) {
+        refetchPosts()
+      }
+    },
+    onPollsChange: () => {
+      if (mountedRef.current) {
+        refetchPolls()
+      }
+    },
+    onVotesChange: () => {
+      if (mountedRef.current) {
+        refetchVotes()
+      }
+    },
+    mounted: mountedRef.current
   })
 
   const canCreate = profile && ['citizen', 'government_official'].includes(profile.role)

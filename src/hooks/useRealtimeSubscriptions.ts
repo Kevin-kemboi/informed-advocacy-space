@@ -18,10 +18,10 @@ export function useRealtimeSubscriptions({
   mounted 
 }: UseRealtimeSubscriptionsProps) {
   const channelRef = useRef<any>(null)
-  const subscriptionActiveRef = useRef(false)
+  const isSubscribedRef = useRef(false)
 
   const cleanupSubscription = () => {
-    if (channelRef.current) {
+    if (channelRef.current && isSubscribedRef.current) {
       console.log('useRealtimeSubscriptions: Cleaning up subscription')
       try {
         supabase.removeChannel(channelRef.current)
@@ -29,28 +29,28 @@ export function useRealtimeSubscriptions({
         console.log('useRealtimeSubscriptions: Error cleaning up channel:', error)
       }
       channelRef.current = null
-      subscriptionActiveRef.current = false
+      isSubscribedRef.current = false
     }
   }
 
   const setupRealtimeSubscription = () => {
     // Prevent multiple subscriptions
-    if (subscriptionActiveRef.current || channelRef.current) {
-      console.log('useRealtimeSubscriptions: Subscription already active, skipping')
-      return
-    }
-
-    if (!user) {
-      console.log('useRealtimeSubscriptions: No user, skipping subscription setup')
+    if (isSubscribedRef.current || !user || !mounted) {
+      console.log('useRealtimeSubscriptions: Subscription already active or user/mounted not ready, skipping')
       return
     }
 
     try {
-      const channelName = `civic-connect-${user.id}-${Date.now()}`
+      const channelName = `civic-connect-${user.id}`
       console.log('useRealtimeSubscriptions: Setting up unified subscription:', channelName)
       
       channelRef.current = supabase
-        .channel(channelName)
+        .channel(channelName, {
+          config: {
+            broadcast: { self: false },
+            presence: { key: user.id }
+          }
+        })
         .on('postgres_changes', {
           event: '*',
           schema: 'public',
@@ -58,11 +58,7 @@ export function useRealtimeSubscriptions({
         }, (payload) => {
           console.log('useRealtimeSubscriptions: Posts table changed:', payload.eventType)
           if (mounted) {
-            setTimeout(() => {
-              if (mounted) {
-                onPostsChange()
-              }
-            }, 500)
+            onPostsChange()
           }
         })
         .on('postgres_changes', {
@@ -72,11 +68,7 @@ export function useRealtimeSubscriptions({
         }, (payload) => {
           console.log('useRealtimeSubscriptions: Polls table changed:', payload.eventType)
           if (mounted) {
-            setTimeout(() => {
-              if (mounted) {
-                onPollsChange()
-              }
-            }, 500)
+            onPollsChange()
           }
         })
         .on('postgres_changes', {
@@ -86,11 +78,7 @@ export function useRealtimeSubscriptions({
         }, (payload) => {
           console.log('useRealtimeSubscriptions: Votes table changed:', payload.eventType)
           if (mounted) {
-            setTimeout(() => {
-              if (mounted) {
-                onVotesChange()
-              }
-            }, 500)
+            onVotesChange()
           }
         })
         .on('postgres_changes', {
@@ -100,30 +88,32 @@ export function useRealtimeSubscriptions({
         }, (payload) => {
           console.log('useRealtimeSubscriptions: Likes table changed:', payload.eventType)
           if (mounted) {
-            setTimeout(() => {
-              if (mounted) {
-                onPostsChange()
-              }
-            }, 500)
+            onPostsChange()
           }
         })
-        .subscribe((status) => {
+
+      // Subscribe only once
+      if (!isSubscribedRef.current) {
+        channelRef.current.subscribe((status) => {
           console.log('useRealtimeSubscriptions: Subscription status:', status)
           if (status === 'SUBSCRIBED') {
-            subscriptionActiveRef.current = true
+            isSubscribedRef.current = true
           } else if (status === 'CHANNEL_ERROR' || status === 'TIMED_OUT' || status === 'CLOSED') {
-            console.error('useRealtimeSubscriptions: Subscription failed')
-            cleanupSubscription()
+            console.error('useRealtimeSubscriptions: Subscription failed with status:', status)
+            isSubscribedRef.current = false
+            channelRef.current = null
           }
         })
+      }
     } catch (error) {
       console.error('useRealtimeSubscriptions: Error setting up subscription:', error)
-      cleanupSubscription()
+      isSubscribedRef.current = false
+      channelRef.current = null
     }
   }
 
   useEffect(() => {
-    if (user && !subscriptionActiveRef.current) {
+    if (user && mounted && !isSubscribedRef.current) {
       setupRealtimeSubscription()
     }
 
@@ -131,6 +121,13 @@ export function useRealtimeSubscriptions({
       cleanupSubscription()
     }
   }, [user?.id, mounted])
+
+  // Cleanup on unmount
+  useEffect(() => {
+    return () => {
+      cleanupSubscription()
+    }
+  }, [])
 
   return { cleanupSubscription }
 }
