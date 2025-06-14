@@ -25,8 +25,8 @@ export function SocialFeed() {
   const isLoading = postsLoading || pollsLoading
 
   console.log('SocialFeed: Rendering with data:', {
-    posts: posts.length,
-    polls: polls.length,
+    posts: posts?.length || 0,
+    polls: polls?.length || 0,
     isLoading,
     canCreate,
     profile: profile?.full_name
@@ -34,8 +34,8 @@ export function SocialFeed() {
 
   // Combine and sort posts and polls by creation date
   const feedItems = [
-    ...posts.map(post => ({ ...post, type: 'post' as const })),
-    ...polls.map(poll => ({ ...poll, type: 'poll' as const }))
+    ...(posts || []).map(post => ({ ...post, type: 'post' as const })),
+    ...(polls || []).map(poll => ({ ...poll, type: 'poll' as const }))
   ].sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime())
 
   if (isLoading) {
@@ -126,9 +126,9 @@ export function SocialFeed() {
           <AnimatedList className="space-y-6">
             {feedItems.map((item) => 
               item.type === 'post' ? (
-                <TwitterPostCard key={item.id} post={item} />
+                <TwitterPostCard key={`post-${item.id}`} post={item} />
               ) : (
-                <PollCard key={item.id} poll={item} />
+                <PollCard key={`poll-${item.id}`} poll={item} />
               )
             )}
           </AnimatedList>

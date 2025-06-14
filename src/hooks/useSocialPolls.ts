@@ -12,6 +12,7 @@ export function useSocialPolls() {
   const pollsChannelRef = useRef<any>(null)
   const votesChannelRef = useRef<any>(null)
   const mountedRef = useRef(true)
+  const subscriptionSetupRef = useRef(false)
 
   useEffect(() => {
     mountedRef.current = true
@@ -27,77 +28,111 @@ export function useSocialPolls() {
       fetchUserVotes()
     }
 
-    // Set up subscriptions only once
-    if (user && !pollsChannelRef.current && !votesChannelRef.current) {
+    // Only setup subscriptions once and when user is available
+    if (user && !subscriptionSetupRef.current) {
       setupRealtimeSubscriptions()
+      subscriptionSetupRef.current = true
     }
 
     return () => {
-      // Clean up subscriptions
-      if (pollsChannelRef.current) {
-        console.log('Cleaning up polls subscription')
-        try {
-          supabase.removeChannel(pollsChannelRef.current)
-        } catch (error) {
-          console.log('Error removing polls channel on cleanup:', error)
-        }
-        pollsChannelRef.current = null
-      }
-      if (votesChannelRef.current) {
-        console.log('Cleaning up votes subscription')
-        try {
-          supabase.removeChannel(votesChannelRef.current)
-        } catch (error) {
-          console.log('Error removing votes channel on cleanup:', error)
-        }
-        votesChannelRef.current = null
-      }
+      cleanupSubscriptions()
     }
   }, [user?.id])
 
+  const cleanupSubscriptions = () => {
+    if (pollsChannelRef.current) {
+      console.log('useSocialPolls: Cleaning up polls subscription')
+      try {
+        supabase.removeChannel(pollsChannelRef.current)
+      } catch (error) {
+        console.log('useSocialPolls: Error cleaning up polls channel:', error)
+      }
+      pollsChannelRef.current = null
+    }
+    
+    if (votesChannelRef.current) {
+      console.log('useSocialPolls: Cleaning up votes subscription')
+      try {
+        supabase.removeChannel(votesChannelRef.current)
+      } catch (error) {
+        console.log('useSocialPolls: Error cleaning up votes channel:', error)
+      }
+      votesChannelRef.current = null
+    }
+    
+    subscriptionSetupRef.current = false
+  }
+
   const setupRealtimeSubscriptions = () => {
-    // Don't create new subscriptions if they already exist
+    // Ensure we don't create duplicate subscriptions
     if (pollsChannelRef.current || votesChannelRef.current) {
-      console.log('Polls/votes subscriptions already exist, skipping setup')
+      console.log('useSocialPolls: Subscriptions already exist, skipping')
       return
     }
 
-    // Subscribe to polls changes
-    const pollsChannelName = `polls-realtime-${user?.id || 'anon'}-${Date.now()}`
-    pollsChannelRef.current = supabase
-      .channel(pollsChannelName)
-      .on('postgres_changes', {
-        event: '*',
-        schema: 'public',
-        table: 'polls'
-      }, (payload) => {
-        console.log('Polls table changed:', payload)
-        if (mountedRef.current) {
-          fetchPolls()
-        }
-      })
-      .subscribe((status) => {
-        console.log('Polls subscription status:', status)
-      })
+    try {
+      // Subscribe to polls changes
+      const pollsChannelName = `polls-feed-${user?.id || 'anon'}-${Date.now()}`
+      pollsChannelRef.current = supabase
+        .channel(pollsChannelName)
+        .on('postgres_changes', {
+          event: '*',
+          schema: 'public',
+          table: 'polls'
+        }, (payload) => {
+          console.log('useSocialPolls: Polls table changed:', payload.eventType)
+          if (mountedRef.current) {
+            setTimeout(() => {
+              if (mountedRef.current) {
+                fetchPolls()
+              }
+            }, 500)
+          }
+        })
+        .subscribe((status) => {
+          console.log('useSocialPolls: Polls subscription status:', status)
+          if (status === 'SUBSCRIPTION_ERROR') {
+            console.error('useSocialPolls: Polls subscription failed')
+            if (pollsChannelRef.current) {
+              supabase.removeChannel(pollsChannelRef.current)
+              pollsChannelRef.current = null
+            }
+          }
+        })
 
-    // Subscribe to votes changes
-    const votesChannelName = `votes-realtime-${user?.id || 'anon'}-${Date.now() + 1}`
-    votesChannelRef.current = supabase
-      .channel(votesChannelName)
-      .on('postgres_changes', {
-        event: '*',
-        schema: 'public',
-        table: 'votes'
-      }, (payload) => {
-        console.log('Votes table changed:', payload)
-        if (mountedRef.current) {
-          fetchPolls()
-          if (user) fetchUserVotes()
-        }
-      })
-      .subscribe((status) => {
-        console.log('Votes subscription status:', status)
-      })
+      // Subscribe to votes changes
+      const votesChannelName = `votes-feed-${user?.id || 'anon'}-${Date.now() + 1}`
+      votesChannelRef.current = supabase
+        .channel(votesChannelName)
+        .on('postgres_changes', {
+          event: '*',
+          schema: 'public',
+          table: 'votes'
+        }, (payload) => {
+          console.log('useSocialPolls: Votes table changed:', payload.eventType)
+          if (mountedRef.current) {
+            setTimeout(() => {
+              if (mountedRef.current) {
+                fetchPolls()
+                if (user) fetchUserVotes()
+              }
+            }, 500)
+          }
+        })
+        .subscribe((status) => {
+          console.log('useSocialPolls: Votes subscription status:', status)
+          if (status === 'SUBSCRIPTION_ERROR') {
+            console.error('useSocialPolls: Votes subscription failed')
+            if (votesChannelRef.current) {
+              supabase.removeChannel(votesChannelRef.current)
+              votesChannelRef.current = null
+            }
+          }
+        })
+    } catch (error) {
+      console.error('useSocialPolls: Error setting up subscriptions:', error)
+      cleanupSubscriptions()
+    }
   }
 
   const fetchPolls = async () => {

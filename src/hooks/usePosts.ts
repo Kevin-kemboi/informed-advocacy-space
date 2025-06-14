@@ -12,6 +12,7 @@ export function usePosts() {
   const { toast } = useToast()
   const channelRef = useRef<any>(null)
   const mountedRef = useRef(true)
+  const subscriptionSetupRef = useRef(false)
 
   useEffect(() => {
     mountedRef.current = true
@@ -24,55 +25,71 @@ export function usePosts() {
     console.log('usePosts: Initializing with user:', user?.id)
     fetchPosts()
 
-    // Set up subscription only once
-    if (user && !channelRef.current) {
+    // Only setup subscription once and when user is available
+    if (user && !subscriptionSetupRef.current) {
       setupRealtimeSubscription()
+      subscriptionSetupRef.current = true
     }
 
     return () => {
-      // Clean up subscription on unmount
-      if (channelRef.current) {
-        console.log('Cleaning up posts subscription')
-        try {
-          supabase.removeChannel(channelRef.current)
-        } catch (error) {
-          console.log('Error removing channel on cleanup:', error)
-        }
-        channelRef.current = null
-      }
+      // Clean up subscription on unmount or user change
+      cleanupSubscription()
     }
   }, [user?.id])
 
-  const setupRealtimeSubscription = () => {
-    // Don't create new subscription if one already exists
+  const cleanupSubscription = () => {
     if (channelRef.current) {
-      console.log('Posts subscription already exists, skipping setup')
+      console.log('usePosts: Cleaning up subscription')
+      try {
+        supabase.removeChannel(channelRef.current)
+      } catch (error) {
+        console.log('usePosts: Error during cleanup:', error)
+      }
+      channelRef.current = null
+      subscriptionSetupRef.current = false
+    }
+  }
+
+  const setupRealtimeSubscription = () => {
+    // Ensure we don't create duplicate subscriptions
+    if (channelRef.current) {
+      console.log('usePosts: Subscription already exists, skipping')
       return
     }
 
-    const channelName = `posts-realtime-${user?.id || 'anon'}-${Date.now()}`
-    console.log('Setting up realtime subscription:', channelName)
+    const channelName = `posts-feed-${user?.id || 'anon'}-${Date.now()}`
+    console.log('usePosts: Setting up subscription:', channelName)
     
-    channelRef.current = supabase
-      .channel(channelName)
-      .on('postgres_changes', {
-        event: '*',
-        schema: 'public',
-        table: 'posts'
-      }, (payload) => {
-        console.log('Posts table changed:', payload.eventType)
-        
-        if (mountedRef.current) {
-          setTimeout(() => {
-            if (mountedRef.current) {
-              fetchPosts()
-            }
-          }, 1000)
-        }
-      })
-      .subscribe((status) => {
-        console.log('Posts subscription status:', status)
-      })
+    try {
+      channelRef.current = supabase
+        .channel(channelName)
+        .on('postgres_changes', {
+          event: '*',
+          schema: 'public',
+          table: 'posts'
+        }, (payload) => {
+          console.log('usePosts: Posts table changed:', payload.eventType)
+          
+          if (mountedRef.current) {
+            // Debounce the fetch to avoid rapid successive calls
+            setTimeout(() => {
+              if (mountedRef.current) {
+                fetchPosts()
+              }
+            }, 500)
+          }
+        })
+        .subscribe((status) => {
+          console.log('usePosts: Subscription status:', status)
+          if (status === 'SUBSCRIPTION_ERROR') {
+            console.error('usePosts: Subscription failed, cleaning up')
+            cleanupSubscription()
+          }
+        })
+    } catch (error) {
+      console.error('usePosts: Error setting up subscription:', error)
+      cleanupSubscription()
+    }
   }
 
   const fetchPosts = async () => {
@@ -84,10 +101,10 @@ export function usePosts() {
       
       if (mountedRef.current) {
         if (postsWithReplies && postsWithReplies.length > 0) {
-          console.log('usePosts: Posts with replies loaded:', postsWithReplies.length)
+          console.log('usePosts: Posts loaded:', postsWithReplies.length)
           setPosts(postsWithReplies)
         } else {
-          console.log('usePosts: No posts returned from service')
+          console.log('usePosts: No posts returned')
           setPosts([])
         }
       }
