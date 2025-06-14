@@ -9,13 +9,13 @@ import { TwitterPostCard } from '@/components/social/TwitterPostCard'
 import { PostComposer } from '@/components/social/PostComposer'
 import { PollComposer } from '@/components/social/PollComposer'
 import { PollCard } from '@/components/social/PollCard'
-import { useEnhancedPosts } from '@/hooks/useEnhancedPosts'
+import { usePosts } from '@/hooks/usePosts'
 import { useSocialPolls } from '@/hooks/useSocialPolls'
 import { useAuth } from '@/hooks/useAuth'
 import { Plus, MessageSquare, BarChart3 } from 'lucide-react'
 
 export function SocialFeed() {
-  const { posts, loading: postsLoading } = useEnhancedPosts()
+  const { posts, loading: postsLoading } = usePosts()
   const { polls, loading: pollsLoading } = useSocialPolls()
   const { profile, loading: authLoading } = useAuth()
   const [showPostComposer, setShowPostComposer] = useState(false)
