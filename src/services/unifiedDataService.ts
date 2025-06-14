@@ -7,6 +7,17 @@ export class UnifiedDataService {
     try {
       console.log('UnifiedDataService: Fetching all posts...')
       
+      // First, let's check if there are any posts at all
+      const { data: allPosts, error: allPostsError } = await supabase
+        .from('posts')
+        .select('*')
+        .limit(10)
+
+      console.log('UnifiedDataService: Total posts in database:', allPosts?.length || 0)
+      if (allPostsError) {
+        console.error('UnifiedDataService: Error fetching basic posts:', allPostsError)
+      }
+
       // Get posts with profiles using the proper foreign key relationship
       const { data: postsData, error: postsError } = await supabase
         .from('posts')
@@ -27,8 +38,48 @@ export class UnifiedDataService {
         .limit(50)
 
       if (postsError) {
-        console.error('UnifiedDataService: Error fetching posts:', postsError)
-        return []
+        console.error('UnifiedDataService: Error fetching posts with profiles:', postsError)
+        
+        // Fallback: try to fetch posts without the foreign key join
+        console.log('UnifiedDataService: Trying fallback method...')
+        const { data: fallbackPosts, error: fallbackError } = await supabase
+          .from('posts')
+          .select('*')
+          .is('parent_id', null)
+          .eq('status', 'active')
+          .order('created_at', { ascending: false })
+          .limit(50)
+
+        if (fallbackError) {
+          console.error('UnifiedDataService: Fallback also failed:', fallbackError)
+          return []
+        }
+
+        if (!fallbackPosts || fallbackPosts.length === 0) {
+          console.log('UnifiedDataService: No posts found in fallback')
+          return []
+        }
+
+        // Manually fetch profiles for fallback posts
+        const userIds = [...new Set(fallbackPosts.map(post => post.user_id))]
+        const { data: profilesData } = await supabase
+          .from('profiles')
+          .select('id, full_name, email, role, profile_pic_url, verified')
+          .in('id', userIds)
+
+        const profilesMap = (profilesData || []).reduce((acc, profile) => {
+          acc[profile.id] = profile
+          return acc
+        }, {} as Record<string, any>)
+
+        // Combine posts with profiles manually
+        const postsWithProfiles = fallbackPosts.map(post => ({
+          ...post,
+          profiles: profilesMap[post.user_id] || null
+        }))
+
+        console.log('UnifiedDataService: Fallback posts with profiles:', postsWithProfiles.length)
+        return postsWithProfiles
       }
 
       if (!postsData || postsData.length === 0) {
