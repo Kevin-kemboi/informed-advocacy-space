@@ -12,8 +12,14 @@ export function useSocialPolls() {
   const { toast } = useToast()
   const pollsChannelRef = useRef<any>(null)
   const votesChannelRef = useRef<any>(null)
-  const isPollsSubscribedRef = useRef(false)
-  const isVotesSubscribedRef = useRef(false)
+  const mountedRef = useRef(true)
+
+  useEffect(() => {
+    mountedRef.current = true
+    return () => {
+      mountedRef.current = false
+    }
+  }, [])
 
   useEffect(() => {
     console.log('useSocialPolls: Initializing with user:', user?.id)
@@ -22,63 +28,61 @@ export function useSocialPolls() {
       fetchUserVotes()
     }
 
-    // Clean up existing subscriptions
-    if (pollsChannelRef.current && !isPollsSubscribedRef.current) {
+    // Clean up existing subscriptions first
+    if (pollsChannelRef.current) {
       try {
         supabase.removeChannel(pollsChannelRef.current)
       } catch (error) {
         console.log('Error removing existing polls channel:', error)
       }
       pollsChannelRef.current = null
-      isPollsSubscribedRef.current = false
     }
-    if (votesChannelRef.current && !isVotesSubscribedRef.current) {
+    if (votesChannelRef.current) {
       try {
         supabase.removeChannel(votesChannelRef.current)
       } catch (error) {
         console.log('Error removing existing votes channel:', error)
       }
       votesChannelRef.current = null
-      isVotesSubscribedRef.current = false
     }
 
     // Subscribe to real-time updates with unique channel names
-    if (!pollsChannelRef.current && !isPollsSubscribedRef.current) {
+    if (!pollsChannelRef.current) {
+      const pollsChannelName = `polls-realtime-${user?.id || 'anon'}-${Date.now()}`
       pollsChannelRef.current = supabase
-        .channel(`polls-realtime-${Date.now()}-${Math.random()}`)
+        .channel(pollsChannelName)
         .on('postgres_changes', {
           event: '*',
           schema: 'public',
           table: 'polls'
         }, (payload) => {
           console.log('Polls table changed:', payload)
-          fetchPolls()
+          if (mountedRef.current) {
+            fetchPolls()
+          }
         })
         .subscribe((status) => {
           console.log('Polls subscription status:', status)
-          if (status === 'SUBSCRIBED') {
-            isPollsSubscribedRef.current = true
-          }
         })
     }
 
-    if (!votesChannelRef.current && !isVotesSubscribedRef.current) {
+    if (!votesChannelRef.current) {
+      const votesChannelName = `votes-realtime-${user?.id || 'anon'}-${Date.now()}`
       votesChannelRef.current = supabase
-        .channel(`votes-realtime-${Date.now()}-${Math.random()}`)
+        .channel(votesChannelName)
         .on('postgres_changes', {
           event: '*',
           schema: 'public',
           table: 'votes'
         }, (payload) => {
           console.log('Votes table changed:', payload)
-          fetchPolls()
-          if (user) fetchUserVotes()
+          if (mountedRef.current) {
+            fetchPolls()
+            if (user) fetchUserVotes()
+          }
         })
         .subscribe((status) => {
           console.log('Votes subscription status:', status)
-          if (status === 'SUBSCRIBED') {
-            isVotesSubscribedRef.current = true
-          }
         })
     }
 
@@ -91,7 +95,6 @@ export function useSocialPolls() {
           console.log('Error removing polls channel on cleanup:', error)
         }
         pollsChannelRef.current = null
-        isPollsSubscribedRef.current = false
       }
       if (votesChannelRef.current) {
         try {
@@ -100,10 +103,9 @@ export function useSocialPolls() {
           console.log('Error removing votes channel on cleanup:', error)
         }
         votesChannelRef.current = null
-        isVotesSubscribedRef.current = false
       }
     }
-  }, [user])
+  }, [user?.id]) // Only depend on user.id to prevent unnecessary re-subscriptions
 
   const fetchPolls = async () => {
     try {
@@ -143,21 +145,29 @@ export function useSocialPolls() {
         }))
 
         console.log('Polls fetched successfully:', pollsWithProfiles.length)
-        setPolls(pollsWithProfiles)
+        if (mountedRef.current) {
+          setPolls(pollsWithProfiles)
+        }
       } else {
         console.log('No polls found')
-        setPolls([])
+        if (mountedRef.current) {
+          setPolls([])
+        }
       }
     } catch (error) {
       console.error('Error fetching polls:', error)
-      toast({
-        title: "Error",
-        description: "Failed to load polls. Please try again.",
-        variant: "destructive"
-      })
-      setPolls([])
+      if (mountedRef.current) {
+        toast({
+          title: "Error",
+          description: "Failed to load polls. Please try again.",
+          variant: "destructive"
+        })
+        setPolls([])
+      }
     } finally {
-      setLoading(false)
+      if (mountedRef.current) {
+        setLoading(false)
+      }
     }
   }
 
@@ -177,7 +187,9 @@ export function useSocialPolls() {
       }
       
       console.log('User votes fetched successfully:', data?.length || 0)
-      setUserVotes(data || [])
+      if (mountedRef.current) {
+        setUserVotes(data || [])
+      }
     } catch (error) {
       console.error('Error fetching user votes:', error)
     }
@@ -217,7 +229,9 @@ export function useSocialPolls() {
       })
 
       // Refresh polls after creating
-      fetchPolls()
+      if (mountedRef.current) {
+        fetchPolls()
+      }
       return data
     } catch (error: any) {
       console.error('Error in createPoll:', error)
@@ -261,8 +275,10 @@ export function useSocialPolls() {
       })
 
       // Refresh data after voting
-      fetchPolls()
-      fetchUserVotes()
+      if (mountedRef.current) {
+        fetchPolls()
+        fetchUserVotes()
+      }
     } catch (error: any) {
       console.error('Error in submitVote:', error)
       toast({

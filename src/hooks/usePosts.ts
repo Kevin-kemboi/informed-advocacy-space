@@ -1,3 +1,4 @@
+
 import { useState, useEffect, useRef } from 'react'
 import { supabase, Post } from '@/lib/supabase'
 import { useAuth } from '@/hooks/useAuth'
@@ -10,7 +11,6 @@ export function usePosts() {
   const { user } = useAuth()
   const { toast } = useToast()
   const channelRef = useRef<any>(null)
-  const isSubscribedRef = useRef(false)
   const mountedRef = useRef(true)
   const retryCountRef = useRef(0)
   const maxRetries = 3
@@ -35,12 +35,11 @@ export function usePosts() {
         console.log('Error removing existing channel:', error)
       }
       channelRef.current = null
-      isSubscribedRef.current = false
     }
 
     // Only set up realtime if we have a user and haven't subscribed yet
-    if (user && !channelRef.current && !isSubscribedRef.current) {
-      const channelName = `posts-realtime-${Date.now()}-${Math.random()}`
+    if (user && !channelRef.current) {
+      const channelName = `posts-realtime-${user.id}-${Date.now()}`
       console.log('Setting up realtime subscription:', channelName)
       
       channelRef.current = supabase
@@ -63,11 +62,6 @@ export function usePosts() {
         })
         .subscribe((status) => {
           console.log('Posts subscription status:', status)
-          if (status === 'SUBSCRIBED') {
-            isSubscribedRef.current = true
-          } else if (status === 'CLOSED' || status === 'CHANNEL_ERROR') {
-            isSubscribedRef.current = false
-          }
         })
     }
 
@@ -80,10 +74,9 @@ export function usePosts() {
           console.log('Error removing channel on cleanup:', error)
         }
         channelRef.current = null
-        isSubscribedRef.current = false
       }
     }
-  }, [user])
+  }, [user?.id]) // Only depend on user.id to prevent unnecessary re-subscriptions
 
   const fetchPosts = async () => {
     try {
