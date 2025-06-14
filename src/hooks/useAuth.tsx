@@ -233,7 +233,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       }
     });
     
-    const { data: authSubscription } = supabase.auth.onAuthStateChange(
+    const { data: authListener } = supabase.auth.onAuthStateChange(
       async (event, session) => {
         if (!isMountedRef.current) {
           console.log(`Auth: onAuthStateChange (event: ${event}) - component unmounted, skipping.`);
@@ -270,7 +270,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
     return () => {
       console.log('Auth Provider: Main auth useEffect cleanup. Unsubscribing from auth state changes.');
-      authSubscription.unsubscribe();
+      if (authListener && authListener.subscription) {
+        authListener.subscription.unsubscribe();
+      }
     };
   }, [fetchProfile]); // fetchProfile is now stable.
 
