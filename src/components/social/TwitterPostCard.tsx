@@ -216,7 +216,7 @@ export function TwitterPostCard({ post, isReply = false }: TwitterPostCardProps)
                             disabled={!replyContent.trim() || isSubmittingReply}
                           >
                             <Send className="w-4 h-4 mr-2" />
-                            Reply
+                            {isSubmittingReply ? 'Replying...' : 'Reply'}
                           </Button>
                         </div>
                       </div>
