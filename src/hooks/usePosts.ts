@@ -1,4 +1,3 @@
-
 import { useState, useEffect, useRef } from 'react'
 import { supabase, Post } from '@/lib/supabase'
 import { useAuth } from '@/hooks/useAuth'
@@ -12,7 +11,7 @@ export function usePosts() {
   const { toast } = useToast()
   const channelRef = useRef<any>(null)
   const mountedRef = useRef(true)
-  const subscriptionSetupRef = useRef(false)
+  const subscriptionActiveRef = useRef(false)
 
   useEffect(() => {
     mountedRef.current = true
@@ -26,13 +25,11 @@ export function usePosts() {
     fetchPosts()
 
     // Only setup subscription once and when user is available
-    if (user && !subscriptionSetupRef.current) {
+    if (user && !subscriptionActiveRef.current) {
       setupRealtimeSubscription()
-      subscriptionSetupRef.current = true
     }
 
     return () => {
-      // Clean up subscription on unmount or user change
       cleanupSubscription()
     }
   }, [user?.id])
@@ -46,14 +43,14 @@ export function usePosts() {
         console.log('usePosts: Error during cleanup:', error)
       }
       channelRef.current = null
-      subscriptionSetupRef.current = false
+      subscriptionActiveRef.current = false
     }
   }
 
   const setupRealtimeSubscription = () => {
-    // Ensure we don't create duplicate subscriptions
-    if (channelRef.current) {
-      console.log('usePosts: Subscription already exists, skipping')
+    // Prevent multiple subscriptions
+    if (subscriptionActiveRef.current || channelRef.current) {
+      console.log('usePosts: Subscription already active, skipping')
       return
     }
 
@@ -81,7 +78,9 @@ export function usePosts() {
         })
         .subscribe((status) => {
           console.log('usePosts: Subscription status:', status)
-          if (status === 'SUBSCRIPTION_ERROR') {
+          if (status === 'SUBSCRIBED') {
+            subscriptionActiveRef.current = true
+          } else if (status === 'CHANNEL_ERROR' || status === 'TIMED_OUT' || status === 'CLOSED') {
             console.error('usePosts: Subscription failed, cleaning up')
             cleanupSubscription()
           }

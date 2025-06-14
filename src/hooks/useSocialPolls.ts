@@ -12,7 +12,7 @@ export function useSocialPolls() {
   const pollsChannelRef = useRef<any>(null)
   const votesChannelRef = useRef<any>(null)
   const mountedRef = useRef(true)
-  const subscriptionSetupRef = useRef(false)
+  const subscriptionActiveRef = useRef(false)
 
   useEffect(() => {
     mountedRef.current = true
@@ -29,9 +29,8 @@ export function useSocialPolls() {
     }
 
     // Only setup subscriptions once and when user is available
-    if (user && !subscriptionSetupRef.current) {
+    if (user && !subscriptionActiveRef.current) {
       setupRealtimeSubscriptions()
-      subscriptionSetupRef.current = true
     }
 
     return () => {
@@ -60,13 +59,13 @@ export function useSocialPolls() {
       votesChannelRef.current = null
     }
     
-    subscriptionSetupRef.current = false
+    subscriptionActiveRef.current = false
   }
 
   const setupRealtimeSubscriptions = () => {
-    // Ensure we don't create duplicate subscriptions
-    if (pollsChannelRef.current || votesChannelRef.current) {
-      console.log('useSocialPolls: Subscriptions already exist, skipping')
+    // Prevent multiple subscriptions
+    if (subscriptionActiveRef.current || pollsChannelRef.current || votesChannelRef.current) {
+      console.log('useSocialPolls: Subscriptions already active, skipping')
       return
     }
 
@@ -91,7 +90,9 @@ export function useSocialPolls() {
         })
         .subscribe((status) => {
           console.log('useSocialPolls: Polls subscription status:', status)
-          if (status === 'SUBSCRIPTION_ERROR') {
+          if (status === 'SUBSCRIBED') {
+            subscriptionActiveRef.current = true
+          } else if (status === 'CHANNEL_ERROR' || status === 'TIMED_OUT' || status === 'CLOSED') {
             console.error('useSocialPolls: Polls subscription failed')
             if (pollsChannelRef.current) {
               supabase.removeChannel(pollsChannelRef.current)
@@ -121,7 +122,7 @@ export function useSocialPolls() {
         })
         .subscribe((status) => {
           console.log('useSocialPolls: Votes subscription status:', status)
-          if (status === 'SUBSCRIPTION_ERROR') {
+          if (status === 'CHANNEL_ERROR' || status === 'TIMED_OUT' || status === 'CLOSED') {
             console.error('useSocialPolls: Votes subscription failed')
             if (votesChannelRef.current) {
               supabase.removeChannel(votesChannelRef.current)
