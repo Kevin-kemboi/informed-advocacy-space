@@ -1,4 +1,3 @@
-
 import { useEffect, useState, createContext, useContext, ReactNode } from 'react'
 import { supabase, getRoleFromEmail, validateEmailDomain } from '@/lib/supabase'
 import { User } from '@supabase/supabase-js'
@@ -39,7 +38,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     // Get initial session
     supabase.auth.getSession().then(({ data: { session }, error }) => {
       if (error) {
-        console.error('Error getting session:', error)
+        console.error('Auth Provider: Error getting session:', error)
         setLoading(false)
         return
       }
@@ -88,19 +87,15 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         .eq('id', userId)
         .maybeSingle()
 
-      console.log('Auth: Profile query result:', { data, error })
+      console.log('Auth: Profile query result:', { data, error, userId })
 
       if (error) {
         console.error('Auth: Database error fetching profile:', error)
         
         // Try to create profile if it doesn't exist
-        if (error.code === 'PGRST116' || error.message.includes('no rows returned')) {
-          console.log('Auth: Profile not found, attempting to create...')
-          await createProfile(userId)
-          return
-        }
-        
-        throw error
+        console.log('Auth: Profile not found, attempting to create...')
+        await createProfile(userId)
+        return
       }
 
       if (!data) {
@@ -162,11 +157,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       
       if (createError) {
         console.error('Auth: Error creating profile:', createError)
-        toast({
-          title: "Profile Creation Error",
-          description: `Failed to create profile: ${createError.message}`,
-          variant: "destructive",
-        })
         throw createError
       }
 
@@ -175,13 +165,15 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       setLoading(false)
     } catch (error: any) {
       console.error('Auth: Error creating profile:', error)
+      
+      // Even if profile creation fails, set loading to false so app doesn't hang
+      setLoading(false)
+      
       toast({
         title: "Profile Creation Error",
         description: `Failed to create profile: ${error.message || 'Unknown error'}`,
         variant: "destructive",
       })
-      setProfile(null)
-      setLoading(false)
     }
   }
 
