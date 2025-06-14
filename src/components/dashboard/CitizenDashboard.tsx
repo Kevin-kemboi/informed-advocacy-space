@@ -1,17 +1,24 @@
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { MessageSquare, Vote, LogOut, Users, TrendingUp, Home } from "lucide-react";
-import { SocialFeed } from "@/components/social/SocialFeed";
+import { MessageSquare, Vote, LogOut, Users, TrendingUp, Home, Plus } from "lucide-react";
+import { UnifiedPostCard } from "@/components/shared/UnifiedPostCard";
+import { PostComposer } from "@/components/social/PostComposer";
+import { PollComposer } from "@/components/social/PollComposer";
+import { PollCard } from "@/components/social/PollCard";
 import { AIChat } from "@/components/ai/AIChat";
 import { GradientText } from "@/components/ui/gradient-text";
 import { CountUp } from "@/components/ui/count-up";
 import { AuroraBackground } from "@/components/ui/aurora-background";
 import { ParticlesBackground } from "@/components/ui/particles-background";
 import { TiltedCard } from "@/components/ui/tilted-card";
+import { AnimatedList } from "@/components/ui/animated-list";
+import { UnifiedDataService } from "@/services/unifiedDataService";
+import { useSocialPolls } from "@/hooks/useSocialPolls";
+import { useAuth } from "@/hooks/useAuth";
 
 interface CitizenDashboardProps {
   user: any;
@@ -19,7 +26,93 @@ interface CitizenDashboardProps {
 }
 
 export function CitizenDashboard({ user, onLogout }: CitizenDashboardProps) {
+  const { profile } = useAuth()
+  const { polls } = useSocialPolls()
+  const [posts, setPosts] = useState([])
+  const [loading, setLoading] = useState(true)
+  const [showPostComposer, setShowPostComposer] = useState(false)
+  const [showPollComposer, setShowPollComposer] = useState(false)
+  const [analyticsData, setAnalyticsData] = useState(null)
+
   console.log('CitizenDashboard: Rendering for user:', user)
+
+  useEffect(() => {
+    loadDashboardData()
+  }, [])
+
+  const loadDashboardData = async () => {
+    try {
+      setLoading(true)
+      console.log('CitizenDashboard: Loading data from UnifiedDataService...')
+      
+      const [allPosts, analytics] = await Promise.all([
+        UnifiedDataService.fetchAllPosts(),
+        UnifiedDataService.getAnalyticsData()
+      ])
+
+      setPosts(allPosts)
+      setAnalyticsData(analytics)
+      console.log('CitizenDashboard: Loaded posts:', allPosts.length)
+    } catch (error) {
+      console.error('CitizenDashboard: Error loading data:', error)
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  const handleCreatePost = async (postData: {
+    content: string
+    category: string
+    post_type: string
+    media_urls: string[]
+    location?: string
+    hashtags?: string[]
+  }) => {
+    if (!profile) return
+    
+    try {
+      await UnifiedDataService.createPost({
+        ...postData,
+        user_id: profile.id
+      })
+      setShowPostComposer(false)
+      // Reload data to show new post
+      await loadDashboardData()
+    } catch (error) {
+      console.error('Error creating post:', error)
+    }
+  }
+
+  const handleReply = async (postId: string, content: string) => {
+    if (!profile) return
+    
+    try {
+      await UnifiedDataService.createReply(postId, content, profile.id)
+      // Reload data to show new reply
+      await loadDashboardData()
+    } catch (error) {
+      console.error('Error creating reply:', error)
+    }
+  }
+
+  // Combine and sort posts and polls by creation date
+  const feedItems = [
+    ...(posts || []).map(post => ({ ...post, type: 'post' as const })),
+    ...(polls || []).map(poll => ({ ...poll, type: 'poll' as const }))
+  ].sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime())
+
+  if (loading) {
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-blue-50 via-purple-50 to-pink-50 flex items-center justify-center">
+        <Card className="p-8">
+          <CardContent className="flex flex-col items-center gap-4">
+            <div className="w-8 h-8 border-4 border-blue-600 border-t-transparent rounded-full animate-spin"></div>
+            <p className="text-gray-600">Loading your dashboard...</p>
+          </CardContent>
+        </Card>
+      </div>
+    )
+  }
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-blue-50 via-purple-50 to-pink-50 relative overflow-hidden">
@@ -63,14 +156,14 @@ export function CitizenDashboard({ user, onLogout }: CitizenDashboardProps) {
             <CardHeader className="pb-3">
               <CardTitle className="text-lg flex items-center">
                 <Users className="h-5 w-5 mr-2 animate-pulse" />
-                Community Members
+                Total Posts
               </CardTitle>
             </CardHeader>
             <CardContent>
               <div className="text-3xl font-bold">
-                <CountUp value={1247} duration={2} />
+                <CountUp value={analyticsData?.totalPosts || 0} duration={2} />
               </div>
-              <p className="text-blue-100">Active citizens</p>
+              <p className="text-blue-100">Community posts</p>
             </CardContent>
           </TiltedCard>
 
@@ -83,7 +176,7 @@ export function CitizenDashboard({ user, onLogout }: CitizenDashboardProps) {
             </CardHeader>
             <CardContent>
               <div className="text-3xl font-bold">
-                <CountUp value={23} duration={1.5} />
+                <CountUp value={polls?.length || 0} duration={1.5} />
               </div>
               <p className="text-green-100">Awaiting your vote</p>
             </CardContent>
@@ -93,12 +186,12 @@ export function CitizenDashboard({ user, onLogout }: CitizenDashboardProps) {
             <CardHeader className="pb-3">
               <CardTitle className="text-lg flex items-center">
                 <TrendingUp className="h-5 w-5 mr-2 animate-pulse" />
-                Impact Score
+                Engagement
               </CardTitle>
             </CardHeader>
             <CardContent>
               <div className="text-3xl font-bold">
-                <CountUp value={95} duration={2.5} />
+                <CountUp value={parseFloat(analyticsData?.engagementRate || '0')} duration={2.5} />%
               </div>
               <p className="text-purple-100">Community rating</p>
             </CardContent>
@@ -119,7 +212,73 @@ export function CitizenDashboard({ user, onLogout }: CitizenDashboardProps) {
           </TabsList>
 
           <TabsContent value="feed" className="animate-fade-in">
-            <SocialFeed />
+            {/* Create Post/Poll Buttons */}
+            <div className="mb-8 space-y-4">
+              <div className="flex gap-3 justify-center">
+                <Button
+                  onClick={() => setShowPostComposer(true)}
+                  className="flex items-center gap-2 bg-blue-600 hover:bg-blue-700 shadow-lg hover:shadow-xl transition-all duration-300 hover:scale-105"
+                >
+                  <MessageSquare className="w-4 h-4" />
+                  Create Post
+                </Button>
+                <Button
+                  onClick={() => setShowPollComposer(true)}
+                  variant="outline"
+                  className="flex items-center gap-2 shadow-lg hover:shadow-xl transition-all duration-300 hover:scale-105"
+                >
+                  <Vote className="w-4 h-4" />
+                  Create Poll
+                </Button>
+              </div>
+
+              <PostComposer 
+                isOpen={showPostComposer} 
+                onClose={() => setShowPostComposer(false)}
+                onSubmit={handleCreatePost}
+              />
+              <PollComposer 
+                isOpen={showPollComposer} 
+                onClose={() => setShowPollComposer(false)} 
+              />
+            </div>
+
+            {/* Feed */}
+            {feedItems.length === 0 ? (
+              <TiltedCard className="p-8 text-center bg-white/80 backdrop-blur-lg">
+                <CardHeader>
+                  <CardTitle>
+                    <GradientText variant="civic">No posts yet</GradientText>
+                  </CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <p className="text-gray-600 mb-4">
+                    Be the first to share something with your community!
+                  </p>
+                  <Button
+                    onClick={() => setShowPostComposer(true)}
+                    className="flex items-center gap-2 bg-blue-600 hover:bg-blue-700"
+                  >
+                    <Plus className="w-4 h-4" />
+                    Create Your First Post
+                  </Button>
+                </CardContent>
+              </TiltedCard>
+            ) : (
+              <AnimatedList className="space-y-6">
+                {feedItems.map((item) => 
+                  item.type === 'post' ? (
+                    <UnifiedPostCard 
+                      key={`post-${item.id}`} 
+                      post={item} 
+                      onReply={handleReply}
+                    />
+                  ) : (
+                    <PollCard key={`poll-${item.id}`} poll={item} />
+                  )
+                )}
+              </AnimatedList>
+            )}
           </TabsContent>
 
           <TabsContent value="ai-chat" className="animate-fade-in">
