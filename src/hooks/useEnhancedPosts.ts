@@ -12,7 +12,6 @@ export function useEnhancedPosts() {
   const { toast } = useToast()
   const channelRef = useRef<any>(null)
   const mountedRef = useRef(true)
-  const hasSetupSubscription = useRef(false)
 
   useEffect(() => {
     mountedRef.current = true
@@ -27,14 +26,13 @@ export function useEnhancedPosts() {
       fetchUserInteractions()
     }
     
-    // Only set up subscription once and only when we have a user
-    if (user && !hasSetupSubscription.current) {
+    // Set up subscription only once
+    if (user && !channelRef.current) {
       setupRealtimeSubscription()
-      hasSetupSubscription.current = true
     }
 
     return () => {
-      // Only cleanup on unmount or when user changes
+      // Clean up subscription on unmount
       if (channelRef.current) {
         console.log('Cleaning up enhanced posts subscription')
         try {
@@ -43,14 +41,13 @@ export function useEnhancedPosts() {
           console.log('Error removing enhanced posts channel on cleanup:', error)
         }
         channelRef.current = null
-        hasSetupSubscription.current = false
       }
     }
-  }, [user?.id]) // Keep user?.id dependency but use ref to prevent duplicate subscriptions
+  }, [user?.id])
 
   const setupRealtimeSubscription = () => {
     // Don't create new subscription if one already exists
-    if (channelRef.current || hasSetupSubscription.current) {
+    if (channelRef.current) {
       console.log('Enhanced posts subscription already exists, skipping setup')
       return
     }
@@ -90,12 +87,12 @@ export function useEnhancedPosts() {
     try {
       setLoading(true)
       
-      // Fetch posts with enhanced data
+      // Fixed: Fetch posts with proper join to profiles table
       const { data: postsData, error: postsError } = await supabase
         .from('posts')
         .select(`
           *,
-          profiles:user_id (
+          profiles!posts_user_id_fkey (
             id,
             full_name,
             email,
@@ -117,7 +114,7 @@ export function useEnhancedPosts() {
               .from('posts')
               .select(`
                 *,
-                profiles:user_id (
+                profiles!posts_user_id_fkey (
                   id,
                   full_name,
                   email,

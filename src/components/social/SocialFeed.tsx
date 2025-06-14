@@ -17,7 +17,7 @@ import { Plus, MessageSquare, BarChart3 } from 'lucide-react'
 export function SocialFeed() {
   const { posts, loading: postsLoading } = usePosts()
   const { polls, loading: pollsLoading } = useSocialPolls()
-  const { profile, loading: authLoading } = useAuth()
+  const { profile } = useAuth()
   const [showPostComposer, setShowPostComposer] = useState(false)
   const [showPollComposer, setShowPollComposer] = useState(false)
 
@@ -37,6 +37,30 @@ export function SocialFeed() {
     ...posts.map(post => ({ ...post, type: 'post' as const })),
     ...polls.map(poll => ({ ...poll, type: 'poll' as const }))
   ].sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime())
+
+  if (isLoading) {
+    return (
+      <div className="relative min-h-screen">
+        <AuroraBackground className="absolute inset-0" />
+        <div className="relative z-10 container mx-auto px-4 py-8 max-w-2xl">
+          <div className="space-y-6">
+            {[...Array(3)].map((_, i) => (
+              <Card key={i} className="p-6">
+                <div className="flex space-x-4">
+                  <Skeleton className="h-12 w-12 rounded-full" />
+                  <div className="space-y-2 flex-1">
+                    <Skeleton className="h-4 w-[250px]" />
+                    <Skeleton className="h-4 w-[200px]" />
+                    <Skeleton className="h-20 w-full" />
+                  </div>
+                </div>
+              </Card>
+            ))}
+          </div>
+        </div>
+      </div>
+    )
+  }
 
   return (
     <div className="relative min-h-screen">
@@ -73,22 +97,7 @@ export function SocialFeed() {
           </div>
         )}
 
-        {isLoading ? (
-          <div className="space-y-6">
-            {[...Array(3)].map((_, i) => (
-              <Card key={i} className="p-6">
-                <div className="flex space-x-4">
-                  <Skeleton className="h-12 w-12 rounded-full" />
-                  <div className="space-y-2 flex-1">
-                    <Skeleton className="h-4 w-[250px]" />
-                    <Skeleton className="h-4 w-[200px]" />
-                    <Skeleton className="h-20 w-full" />
-                  </div>
-                </div>
-              </Card>
-            ))}
-          </div>
-        ) : feedItems.length === 0 ? (
+        {feedItems.length === 0 ? (
           <Card className="p-8 text-center">
             <CardHeader>
               <CardTitle>No posts yet</CardTitle>
