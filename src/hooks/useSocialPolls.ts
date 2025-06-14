@@ -12,7 +12,7 @@ export function useSocialPolls() {
   const pollsChannelRef = useRef<any>(null)
   const votesChannelRef = useRef<any>(null)
   const mountedRef = useRef(true)
-  const subscriptionSetupRef = useRef(false)
+  const hasSetupSubscription = useRef(false)
 
   useEffect(() => {
     mountedRef.current = true
@@ -28,13 +28,14 @@ export function useSocialPolls() {
       fetchUserVotes()
     }
 
-    // Only set up subscription once per user
-    if (!subscriptionSetupRef.current) {
+    // Only set up subscription once and only when we have a user
+    if (user && !hasSetupSubscription.current) {
       setupRealtimeSubscriptions()
-      subscriptionSetupRef.current = true
+      hasSetupSubscription.current = true
     }
 
     return () => {
+      // Only cleanup on unmount or when user changes
       console.log('Cleaning up polls and votes subscriptions')
       if (pollsChannelRef.current) {
         try {
@@ -52,27 +53,15 @@ export function useSocialPolls() {
         }
         votesChannelRef.current = null
       }
-      subscriptionSetupRef.current = false
+      hasSetupSubscription.current = false
     }
-  }, [user?.id])
+  }, [user?.id]) // Keep user?.id dependency but use ref to prevent duplicate subscriptions
 
   const setupRealtimeSubscriptions = () => {
-    // Clean up existing subscriptions first
-    if (pollsChannelRef.current) {
-      try {
-        supabase.removeChannel(pollsChannelRef.current)
-      } catch (error) {
-        console.log('Error removing existing polls channel:', error)
-      }
-      pollsChannelRef.current = null
-    }
-    if (votesChannelRef.current) {
-      try {
-        supabase.removeChannel(votesChannelRef.current)
-      } catch (error) {
-        console.log('Error removing existing votes channel:', error)
-      }
-      votesChannelRef.current = null
+    // Don't create new subscriptions if they already exist
+    if ((pollsChannelRef.current || votesChannelRef.current) || hasSetupSubscription.current) {
+      console.log('Polls/votes subscriptions already exist, skipping setup')
+      return
     }
 
     // Subscribe to real-time updates with unique channel names

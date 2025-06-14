@@ -13,7 +13,7 @@ export function usePosts() {
   const mountedRef = useRef(true)
   const retryCountRef = useRef(0)
   const maxRetries = 3
-  const subscriptionSetupRef = useRef(false)
+  const hasSetupSubscription = useRef(false)
 
   useEffect(() => {
     mountedRef.current = true
@@ -26,36 +26,32 @@ export function usePosts() {
     console.log('usePosts: Initializing with user:', user?.id)
     fetchPosts()
 
-    // Only set up subscription once per user
-    if (user && !subscriptionSetupRef.current) {
+    // Only set up subscription once and only when we have a user
+    if (user && !hasSetupSubscription.current) {
       setupRealtimeSubscription()
-      subscriptionSetupRef.current = true
+      hasSetupSubscription.current = true
     }
 
     return () => {
-      console.log('Cleaning up posts subscription')
+      // Only cleanup on unmount or when user changes
       if (channelRef.current) {
+        console.log('Cleaning up posts subscription')
         try {
           supabase.removeChannel(channelRef.current)
         } catch (error) {
           console.log('Error removing channel on cleanup:', error)
         }
         channelRef.current = null
-        subscriptionSetupRef.current = false
+        hasSetupSubscription.current = false
       }
     }
-  }, [user?.id])
+  }, [user?.id]) // Keep user?.id dependency but use ref to prevent duplicate subscriptions
 
   const setupRealtimeSubscription = () => {
-    // Clean up existing subscription first
-    if (channelRef.current) {
-      try {
-        console.log('Cleaning up existing posts subscription')
-        supabase.removeChannel(channelRef.current)
-      } catch (error) {
-        console.log('Error removing existing channel:', error)
-      }
-      channelRef.current = null
+    // Don't create new subscription if one already exists
+    if (channelRef.current || hasSetupSubscription.current) {
+      console.log('Posts subscription already exists, skipping setup')
+      return
     }
 
     const channelName = `posts-realtime-${user?.id || 'anon'}-${Date.now()}`
