@@ -14,6 +14,8 @@ export class PostsService {
     this.isFetching = true
     
     try {
+      console.log('PostsService: Starting to fetch posts with profiles...')
+      
       // Single query to get all posts with profiles using the correct foreign key relationship
       const { data: postsData, error: postsError } = await supabase
         .from('posts')
@@ -32,10 +34,20 @@ export class PostsService {
         .eq('status', 'active')
         .order('created_at', { ascending: false })
 
-      if (postsError) throw postsError
+      console.log('PostsService: Posts query result:', { data: postsData, error: postsError })
+
+      if (postsError) {
+        console.error('PostsService: Error fetching posts:', postsError)
+        throw postsError
+      }
 
       // Get all main post IDs for batch reply fetching
       const postIds = postsData?.map(post => post.id) || []
+      
+      if (postIds.length === 0) {
+        console.log('PostsService: No main posts found')
+        return []
+      }
       
       // Single query to get all replies for all posts
       const { data: repliesData, error: repliesError } = await supabase
@@ -55,7 +67,12 @@ export class PostsService {
         .eq('status', 'active')
         .order('created_at', { ascending: true })
 
-      if (repliesError) throw repliesError
+      console.log('PostsService: Replies query result:', { data: repliesData, error: repliesError })
+
+      if (repliesError) {
+        console.error('PostsService: Error fetching replies:', repliesError)
+        // Don't throw here, just proceed without replies
+      }
 
       // Group replies by parent_id
       const repliesByParent = (repliesData || []).reduce((acc, reply) => {
@@ -73,7 +90,11 @@ export class PostsService {
         reply_count: (repliesByParent[post.id] || []).length
       }))
 
+      console.log('PostsService: Final posts with replies:', postsWithReplies.length)
       return postsWithReplies
+    } catch (error) {
+      console.error('PostsService: Critical error in fetchPostsWithProfiles:', error)
+      return []
     } finally {
       this.isFetching = false
     }

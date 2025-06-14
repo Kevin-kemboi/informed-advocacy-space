@@ -81,7 +81,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     try {
       console.log('Auth: Fetching profile from database...')
 
-      // Simplified profile fetch with shorter timeout
+      // Simplified profile fetch without timeout
       const { data, error } = await supabase
         .from('profiles')
         .select('*')
@@ -146,7 +146,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         setProfile(data)
       }
     } catch (error: any) {
-      console.error('Auth: Critical error in fetchProfile:', error)
+      console.error('Auth: Error in fetchProfile:', error)
       
       toast({
         title: "Profile Error",
