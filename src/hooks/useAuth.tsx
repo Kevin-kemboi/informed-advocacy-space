@@ -1,5 +1,5 @@
 import { useEffect, useState, createContext, useContext, ReactNode, useCallback, useRef } from 'react'
-import { supabase, getRoleFromEmail } from '@/lib/supabase' // Removed validateEmailDomain as it's unused
+import { supabase, getRoleFromEmail } from '@/lib/supabase'
 import { User } from '@supabase/supabase-js'
 import { useToast } from '@/hooks/use-toast'
 
@@ -35,6 +35,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const isMountedRef = useRef(true);
   const fetchProfileInProgressRef = useRef<string | null>(null);
 
+  // Ref to hold the current profile state for use in callbacks without making profile a direct dep of the callback
+  const profileRef = useRef<Profile | null>(null);
+  useEffect(() => {
+    profileRef.current = profile;
+  }, [profile]);
+
   useEffect(() => {
     isMountedRef.current = true;
     return () => {
@@ -49,24 +55,22 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       return false;
     }
     
-    console.log(`Auth: createProfile (${userId}) - ENTERED. Mounted: ${isMountedRef.current}`);
+    console.log(`Auth: createProfile (${userId}) - ENTERED. Mounted: ${isMountedRef.current}. Current profile via ref:`, profileRef.current?.full_name);
     let profileSet = false;
 
     try {
       console.log(`Auth: createProfile (${userId}) - Attempting to get user data from Supabase auth.`);
-      // raw_user_meta_data during signup might be more reliable here if available through session or user object.
-      // For now, assuming getUser() is necessary if direct metadata isn't passed.
       const { data: userDataResponse, error: userError } = await supabase.auth.getUser();
       
       if (userError || !userDataResponse.user) {
         console.error(`Auth: createProfile (${userId}) - Failed to get user data from Supabase auth. Error:`, userError);
-        if (isMountedRef.current && !profile) { // Check current profile state before setting fallback
+        if (isMountedRef.current && !profileRef.current) { // Use profileRef for this check
           const criticalFallbackProfile: Profile = {
             id: userId, full_name: 'Error User', email: `user_${userId.substring(0,8)}@error.com`, role: 'citizen', verified: false, created_at: new Date().toISOString()
           };
           setProfile(criticalFallbackProfile);
           profileSet = true;
-          console.log(`Auth: createProfile (${userId}) - Used CRITICAL FALLBACK profile due to getUser error.`);
+          console.log(`Auth: createProfile (${userId}) - Used CRITICAL FALLBACK profile due to getUser error. Profile ref was null.`);
         }
         return profileSet;
       }
@@ -88,6 +92,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       
       if (createError) {
         console.error(`Auth: createProfile (${userId}) - Error inserting profile into DB:`, createError);
+        // This fallback doesn't depend on profileRef.current for its condition, so it's fine
         const fallbackProfile: Profile = {
           id: userId, full_name: profileData.full_name, email: profileData.email, role: profileData.role, verified: false, created_at: new Date().toISOString()
         };
@@ -120,17 +125,17 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
     } catch (error: any) {
       console.error(`Auth: createProfile (${userId}) - CRITICAL CATCH_BLOCK error:`, error);
-      if (isMountedRef.current && !profile) { // Check current profile state
+      if (isMountedRef.current && !profileRef.current) { // Use profileRef for this check
           const criticalFallbackProfile: Profile = {
             id: userId, full_name: 'Exception User', email: `user_${userId.substring(0,8)}@exception.com`, role: 'citizen', verified: false, created_at: new Date().toISOString()
           };
           setProfile(criticalFallbackProfile);
           profileSet = true;
-          console.log(`Auth: createProfile (${userId}) - Used CRITICAL FALLBACK profile due to CATCH_BLOCK error.`);
+          console.log(`Auth: createProfile (${userId}) - Used CRITICAL FALLBACK profile due to CATCH_BLOCK error. Profile ref was null.`);
       }
       return profileSet;
     }
-  }, [profile]); // profile is a dependency to avoid setting fallback if profile already exists from a concurrent update
+  }, []); // Stable: depends only on imports (supabase, getRoleFromEmail) and profileRef for conditional logic
 
   const fetchProfile = useCallback(async (userId: string) => {
     if (!isMountedRef.current) {
@@ -144,7 +149,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
     fetchProfileInProgressRef.current = userId;
     
-    console.log(`Auth: fetchProfile (${userId}) - ENTERED. Mounted: ${isMountedRef.current}`);
+    console.log(`Auth: fetchProfile (${userId}) - ENTERED. Mounted: ${isMountedRef.current}. Current profile via ref:`, profileRef.current?.full_name);
     let profileSuccessfullyRetrievedOrCreated = false;
 
     try {
@@ -164,12 +169,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       if (data) {
         console.log(`Auth: fetchProfile (${userId}) - Profile FOUND in DB and SET:`, data.full_name);
         if (isMountedRef.current) {
-          setProfile(data);
+          setProfile(data); // This setProfile is fine
           profileSuccessfullyRetrievedOrCreated = true;
         }
       } else {
         console.log(`Auth: fetchProfile (${userId}) - No profile in DB. Attempting to CREATE new profile.`);
-        profileSuccessfullyRetrievedOrCreated = await createProfile(userId);
+        profileSuccessfullyRetrievedOrCreated = await createProfile(userId); // createProfile is stable
         if (profileSuccessfullyRetrievedOrCreated) {
           console.log(`Auth: fetchProfile (${userId}) - Profile creation attempt SUCCEEDED (profile should be set).`);
         } else {
@@ -178,13 +183,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       }
     } catch (error: any) {
       console.error(`Auth: fetchProfile (${userId}) - CRITICAL CATCH_BLOCK error: ${error.message}. Mounted: ${isMountedRef.current}`);
-      if (isMountedRef.current && !profile) { // Check current profile state
+      if (isMountedRef.current && !profileRef.current) { // Use profileRef for this check
           const emergencyFallback: Profile = {
             id: userId, full_name: 'Emergency User', email: `emergency_${userId.substring(0,8)}@example.com`, role: 'citizen', created_at: new Date().toISOString()
           };
-          setProfile(emergencyFallback);
-          profileSuccessfullyRetrievedOrCreated = true; // Fallback is a form of retrieval/creation for UI
-          console.log(`Auth: fetchProfile (${userId}) - Used EMERGENCY FALLBACK profile due to CATCH_BLOCK error.`);
+          setProfile(emergencyFallback); // This setProfile is fine
+          profileSuccessfullyRetrievedOrCreated = true; 
+          console.log(`Auth: fetchProfile (${userId}) - Used EMERGENCY FALLBACK profile due to CATCH_BLOCK error. Profile ref was null.`);
       }
     } finally {
       console.log(`Auth: fetchProfile (${userId}) - FINALLY_BLOCK_ENTERED. Mounted: ${isMountedRef.current}`);
@@ -193,61 +198,71 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         console.log(`Auth: fetchProfile (${userId}) - setLoading(false) called in FINALLY (MOUNTED). Profile fetched/created status: ${profileSuccessfullyRetrievedOrCreated}. New loading state: false.`);
       }
       if (fetchProfileInProgressRef.current === userId) {
-         fetchProfileInProgressRef.current = null; // Clear lock
+         fetchProfileInProgressRef.current = null; 
       }
       console.log(`Auth: fetchProfile (${userId}) - EXITED. fetchProfileInProgressRef: ${fetchProfileInProgressRef.current}`);
     }
-  }, [createProfile, profile]); // profile is a dependency for fallback logic
+  }, [createProfile]); // Stable: depends on stable createProfile and imports (supabase)
 
   useEffect(() => {
-    setLoading(true); // Start as loading
+    // Set loading true at the start of the auth initialization process.
+    // It will be set to false by fetchProfile or if no session is found.
+    setLoading(true);
     console.log('Auth Provider: Main auth useEffect triggered. Initializing auth process.');
 
-    // Initial session check. onAuthStateChange will also fire with INITIAL_SESSION if a session exists.
     supabase.auth.getSession().then(({ data: { session } }) => {
-      if (!isMountedRef.current) return;
+      if (!isMountedRef.current) {
+        console.log('Auth Provider: getSession callback - component unmounted, aborting.');
+        return;
+      }
       console.log('Auth Provider: Initial getSession() completed.', session ? `User: ${session.user.id}` : 'No initial session.');
       if (!session?.user) {
-        // If getSession shows no user, and onAuthStateChange hasn't already set loading false.
-        // This can happen if onAuthStateChange is slower or doesn't fire for no session.
+        // If getSession shows no user, and onAuthStateChange hasn't potentially run yet.
         setUser(null);
         setProfile(null);
-        setLoading(false);
-        console.log('Auth Provider: Initial getSession - No active session, ensuring user/profile null and loading false.');
+        setLoading(false); // Explicitly set loading to false.
+        console.log('Auth Provider: Initial getSession - No active session found, ensuring user/profile null and loading false.');
       }
-      // If session exists, onAuthStateChange (INITIAL_SESSION) should handle it.
+      // If a session exists, onAuthStateChange (event: INITIAL_SESSION) is expected to handle fetching the profile.
     }).catch(error => {
       if(isMountedRef.current) {
         console.error("Auth Provider: Error fetching initial session:", error);
-        setLoading(false);
+        setLoading(false); // Ensure loading is false on error
+      } else {
+        console.log('Auth Provider: getSession().catch - component unmounted, aborting.');
       }
     });
     
-    const { data: { subscription } } = supabase.auth.onAuthStateChange(
+    const { data: authSubscription } = supabase.auth.onAuthStateChange(
       async (event, session) => {
         if (!isMountedRef.current) {
           console.log(`Auth: onAuthStateChange (event: ${event}) - component unmounted, skipping.`);
           return;
         }
         
-        console.log(`Auth: onAuthStateChange - Event: ${event}, User ID: ${session?.user?.id}. Current loading state: ${loading}`);
+        // Use a local variable for current loading state to avoid stale closure issues if `loading` was a dep
+        const currentLoadingState = loading; 
+        console.log(`Auth: onAuthStateChange - Event: ${event}, User ID: ${session?.user?.id}. Current loading state before changes: ${currentLoadingState}`);
+        
         setUser(session?.user ?? null);
         
         if (session?.user) {
-          // Set loading to true if it's a new sign-in and we are not already loading.
-          // fetchProfile will set it to false.
-          if (!loading && (event === 'SIGNED_IN' || event === 'TOKEN_REFRESHED' || event === 'USER_UPDATED')) {
-              setLoading(true);
-          } else if (event === 'INITIAL_SESSION' && !loading) {
-            // If it's initial session and somehow loading became false, set it back true before fetch.
+          // Set loading true if not already loading and a significant event occurs,
+          // and no fetch is already in progress for this user.
+          if (!currentLoadingState && 
+              (event === 'SIGNED_IN' || event === 'TOKEN_REFRESHED' || event === 'USER_UPDATED' || event === 'INITIAL_SESSION') &&
+              fetchProfileInProgressRef.current !== session.user.id) {
+            console.log(`Auth: onAuthStateChange - Event ${event} for user ${session.user.id}. Setting loading to true before fetchProfile.`);
             setLoading(true);
           }
-          await fetchProfile(session.user.id);
+          await fetchProfile(session.user.id); // fetchProfile handles setting loading to false.
         } else {
-          // No user (SIGNED_OUT, or INITIAL_SESSION with no actual session, or other events resulting in no user)
           setProfile(null);
-          setLoading(false); // Ensure loading is false if no user
-          fetchProfileInProgressRef.current = null; // Clear any pending fetch lock
+          setLoading(false); 
+          if (fetchProfileInProgressRef.current) {
+            console.log(`Auth: onAuthStateChange - No user session, clearing fetchProfileInProgressRef for ${fetchProfileInProgressRef.current}. Event: ${event}`);
+            fetchProfileInProgressRef.current = null;
+          }
           console.log(`Auth: onAuthStateChange - No user session. Profile cleared, loading set to false. Event: ${event}`);
         }
       }
@@ -255,10 +270,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
     return () => {
       console.log('Auth Provider: Main auth useEffect cleanup. Unsubscribing from auth state changes.');
-      subscription.unsubscribe();
-      // isMountedRef is handled by its own useEffect
+      authSubscription.unsubscribe();
     };
-  }, [fetchProfile, loading]); // `loading` is a dependency to re-evaluate `setLoading(true)` logic if needed. `fetchProfile` is stable due to useCallback.
+  }, [fetchProfile]); // fetchProfile is now stable.
 
   const signIn = async (email: string, password: string) => {
     try {
@@ -311,7 +325,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         title: "Account created!",
         description: "Welcome to CivicConnect. Your account has been created successfully.",
       })
-      // Profile creation is handled by the onAuthStateChange -> fetchProfile -> createProfile flow
       return data
     } catch (error: any) {
       console.error('Sign up error:', error)
@@ -328,7 +341,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     try {
       const { error } = await supabase.auth.signOut()
       if (error) throw error
-      // Profile, loading state, and fetchProfileInProgressRef are handled by onAuthStateChange
       toast({
         title: "Goodbye!",
         description: "You have been signed out successfully.",
@@ -350,15 +362,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     signUp,
     signOut,
   }
-
-  // Log state before render
-  // console.log('Auth Provider: Rendering with state:', { 
-  //   userId: user?.id, 
-  //   profileName: profile?.full_name, 
-  //   profileRole: profile?.role,
-  //   isProfileObject: !!profile,
-  //   loading 
-  // });
 
   return (
     <AuthContext.Provider value={value}>
