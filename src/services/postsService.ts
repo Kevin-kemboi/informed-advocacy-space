@@ -2,14 +2,18 @@
 import { supabase } from '@/lib/supabase'
 
 export class PostsService {
-  private static fetchTimeoutId: NodeJS.Timeout | null = null
   private static isFetching = false
 
   static async fetchPostsWithProfiles() {
     // Prevent multiple simultaneous fetches
     if (this.isFetching) {
-      console.log('PostsService: Already fetching, skipping...')
-      return null
+      console.log('PostsService: Already fetching, waiting...')
+      // Wait a bit and try again instead of skipping
+      await new Promise(resolve => setTimeout(resolve, 500))
+      if (this.isFetching) {
+        console.log('PostsService: Still fetching, returning empty array')
+        return []
+      }
     }
 
     this.isFetching = true
@@ -18,12 +22,12 @@ export class PostsService {
       console.log('PostsService: Starting to fetch posts with profiles...')
       
       // Debug: Check if we can access the tables
-      const { data: tableCheck, error: tableError } = await supabase
+      const { count: postsCount, error: tableError } = await supabase
         .from('posts')
-        .select('count', { count: 'exact', head: true })
+        .select('*', { count: 'exact', head: true })
 
       console.log('PostsService: Table access check:', { 
-        count: tableCheck, 
+        postsCount, 
         error: tableError 
       })
 
@@ -91,21 +95,32 @@ export class PostsService {
         })
       }
 
-      // Manually attach profiles to posts
-      const postsWithProfiles = postsData.map(post => {
-        const profile = profilesMap.get(post.user_id) || {
-          id: post.user_id,
+      // For missing profiles, try to create them
+      const missingUserIds = userIds.filter(id => !profilesMap.has(id))
+      console.log('PostsService: Missing profiles for users:', missingUserIds)
+
+      // Create fallback profiles for missing users
+      for (const userId of missingUserIds) {
+        const fallbackProfile = {
+          id: userId,
           full_name: 'Unknown User',
           email: '',
           role: 'citizen',
           verified: false
         }
+        profilesMap.set(userId, fallbackProfile)
+        console.log('PostsService: Created fallback profile for user:', userId)
+      }
+
+      // Manually attach profiles to posts
+      const postsWithProfiles = postsData.map(post => {
+        const profile = profilesMap.get(post.user_id)
         
         console.log('PostsService: Attaching profile to post:', {
           postId: post.id,
           userId: post.user_id,
-          profileFound: !!profilesMap.get(post.user_id),
-          profileName: profile.full_name
+          profileFound: !!profile,
+          profileName: profile?.full_name
         })
         
         return {
@@ -182,13 +197,8 @@ export class PostsService {
   }
 
   static debouncedFetch(callback: () => void, delay = 1000) {
-    if (this.fetchTimeoutId) {
-      clearTimeout(this.fetchTimeoutId)
-    }
-    
-    this.fetchTimeoutId = setTimeout(() => {
+    setTimeout(() => {
       callback()
-      this.fetchTimeoutId = null
     }, delay)
   }
 }

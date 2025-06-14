@@ -36,37 +36,50 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     console.log('Auth Provider: Starting initialization')
     
+    let mounted = true
+
     // Get initial session
-    supabase.auth.getSession().then(({ data: { session }, error }) => {
-      console.log('Auth Provider: Initial session check:', { 
-        sessionExists: !!session, 
-        userId: session?.user?.id,
-        error 
-      })
-      
-      if (error) {
-        console.error('Auth Provider: Error getting session:', error)
-        setLoading(false)
-        return
+    const initializeAuth = async () => {
+      try {
+        const { data: { session }, error } = await supabase.auth.getSession()
+        
+        console.log('Auth Provider: Initial session check:', { 
+          sessionExists: !!session, 
+          userId: session?.user?.id,
+          error 
+        })
+        
+        if (error) {
+          console.error('Auth Provider: Error getting session:', error)
+          if (mounted) setLoading(false)
+          return
+        }
+        
+        if (mounted) {
+          setUser(session?.user ?? null)
+          if (session?.user) {
+            console.log('Auth Provider: Found existing session, fetching profile...')
+            await fetchProfile(session.user.id)
+          } else {
+            console.log('Auth Provider: No existing session')
+            setLoading(false)
+          }
+        }
+      } catch (error) {
+        console.error('Auth Provider: Session fetch failed:', error)
+        if (mounted) setLoading(false)
       }
-      
-      setUser(session?.user ?? null)
-      if (session?.user) {
-        console.log('Auth Provider: Found existing session, fetching profile...')
-        fetchProfile(session.user.id)
-      } else {
-        console.log('Auth Provider: No existing session')
-        setLoading(false)
-      }
-    }).catch((error) => {
-      console.error('Auth Provider: Session fetch failed:', error)
-      setLoading(false)
-    })
+    }
+
+    initializeAuth()
 
     // Listen for auth changes
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
       async (event, session) => {
         console.log('Auth state changed:', event, 'User ID:', session?.user?.id)
+        
+        if (!mounted) return
+        
         setUser(session?.user ?? null)
         
         if (session?.user) {
@@ -80,131 +93,138 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       }
     )
 
+    const fetchProfile = async (userId: string) => {
+      if (!mounted) return
+      
+      console.log('Auth: Starting fetchProfile for user:', userId)
+      
+      try {
+        console.log('Auth: Querying profiles table...')
+
+        const { data, error } = await supabase
+          .from('profiles')
+          .select('*')
+          .eq('id', userId)
+          .maybeSingle()
+
+        console.log('Auth: Profile query result:', { 
+          data, 
+          error, 
+          userId,
+          hasData: !!data
+        })
+
+        if (error) {
+          console.error('Auth: Database error fetching profile:', error)
+          // Try to create profile
+          await createProfile(userId)
+          return
+        }
+
+        if (!data) {
+          console.log('Auth: No profile found, creating new profile...')
+          await createProfile(userId)
+        } else {
+          console.log('Auth: Profile fetched successfully:', {
+            id: data.id,
+            full_name: data.full_name,
+            email: data.email,
+            role: data.role
+          })
+          if (mounted) {
+            setProfile(data)
+            setLoading(false)
+          }
+        }
+      } catch (error: any) {
+        console.error('Auth: Critical error in fetchProfile:', error)
+        
+        toast({
+          title: "Profile Error",
+          description: `Failed to load profile: ${error.message || 'Unknown error'}`,
+          variant: "destructive",
+        })
+        
+        // Still try to create profile
+        console.log('Auth: Attempting to create profile after critical error...')
+        await createProfile(userId)
+      }
+    }
+
+    const createProfile = async (userId: string) => {
+      if (!mounted) return
+      
+      try {
+        console.log('Auth: Creating profile for user:', userId)
+        
+        // Get user data for creating profile
+        const { data: userData, error: userError } = await supabase.auth.getUser()
+        console.log('Auth: User data for profile creation:', { 
+          email: userData?.user?.email, 
+          userError,
+          metadata: userData?.user?.user_metadata 
+        })
+        
+        if (userError || !userData.user) {
+          console.error('Auth: Cannot create profile - no user data:', userError)
+          if (mounted) setLoading(false)
+          return
+        }
+
+        const profileData = {
+          id: userId,
+          full_name: userData.user.user_metadata?.full_name || 
+                     userData.user.user_metadata?.name || 
+                     userData.user.email?.split('@')[0] || 
+                     'User',
+          email: userData.user.email || '',
+          role: (userData.user.user_metadata?.role as 'citizen' | 'government_official' | 'admin') || 'citizen'
+        }
+
+        console.log('Auth: Creating profile with data:', profileData)
+
+        const { data: newProfile, error: createError } = await supabase
+          .from('profiles')
+          .insert(profileData)
+          .select()
+          .single()
+        
+        console.log('Auth: Profile creation result:', { newProfile, createError })
+        
+        if (createError) {
+          console.error('Auth: Error creating profile:', createError)
+          if (mounted) setLoading(false)
+          toast({
+            title: "Profile Creation Error",
+            description: `Failed to create profile: ${createError.message}`,
+            variant: "destructive",
+          })
+          return
+        }
+
+        console.log('Auth: Profile created successfully:', newProfile)
+        if (mounted) {
+          setProfile(newProfile)
+          setLoading(false)
+        }
+      } catch (error: any) {
+        console.error('Auth: Critical error creating profile:', error)
+        if (mounted) setLoading(false)
+        
+        toast({
+          title: "Profile Creation Error",
+          description: `Failed to create profile: ${error.message || 'Unknown error'}`,
+          variant: "destructive",
+        })
+      }
+    }
+
     return () => {
       console.log('Auth Provider: Cleanup')
+      mounted = false
       subscription.unsubscribe()
     }
   }, [])
-
-  const fetchProfile = async (userId: string) => {
-    console.log('Auth: Starting fetchProfile for user:', userId)
-    
-    try {
-      console.log('Auth: Querying profiles table...')
-
-      const { data, error } = await supabase
-        .from('profiles')
-        .select('*')
-        .eq('id', userId)
-        .maybeSingle()
-
-      console.log('Auth: Profile query result:', { 
-        data, 
-        error, 
-        userId,
-        hasData: !!data,
-        dataKeys: data ? Object.keys(data) : []
-      })
-
-      if (error) {
-        console.error('Auth: Database error fetching profile:', error)
-        console.log('Auth: Attempting to create profile due to error...')
-        await createProfile(userId)
-        return
-      }
-
-      if (!data) {
-        console.log('Auth: No profile found, creating new profile...')
-        await createProfile(userId)
-      } else {
-        console.log('Auth: Profile fetched successfully:', {
-          id: data.id,
-          full_name: data.full_name,
-          email: data.email,
-          role: data.role
-        })
-        setProfile(data)
-        setLoading(false)
-      }
-    } catch (error: any) {
-      console.error('Auth: Critical error in fetchProfile:', error)
-      
-      toast({
-        title: "Profile Error",
-        description: `Failed to load profile: ${error.message || 'Unknown error'}`,
-        variant: "destructive",
-      })
-      
-      // Still try to create profile
-      console.log('Auth: Attempting to create profile after critical error...')
-      await createProfile(userId)
-    }
-  }
-
-  const createProfile = async (userId: string) => {
-    try {
-      console.log('Auth: Creating profile for user:', userId)
-      
-      // Get user data for creating profile
-      const { data: userData, error: userError } = await supabase.auth.getUser()
-      console.log('Auth: User data for profile creation:', { 
-        email: userData?.user?.email, 
-        userError,
-        metadata: userData?.user?.user_metadata 
-      })
-      
-      if (userError || !userData.user) {
-        console.error('Auth: Cannot create profile - no user data:', userError)
-        setLoading(false)
-        return
-      }
-
-      const profileData = {
-        id: userId,
-        full_name: userData.user.user_metadata?.full_name || 
-                   userData.user.user_metadata?.name || 
-                   userData.user.email?.split('@')[0] || 
-                   'User',
-        email: userData.user.email || '',
-        role: (userData.user.user_metadata?.role as 'citizen' | 'government_official' | 'admin') || 'citizen'
-      }
-
-      console.log('Auth: Creating profile with data:', profileData)
-
-      const { data: newProfile, error: createError } = await supabase
-        .from('profiles')
-        .insert(profileData)
-        .select()
-        .single()
-      
-      console.log('Auth: Profile creation result:', { newProfile, createError })
-      
-      if (createError) {
-        console.error('Auth: Error creating profile:', createError)
-        // Don't throw - set loading to false so app doesn't hang
-        setLoading(false)
-        toast({
-          title: "Profile Creation Error",
-          description: `Failed to create profile: ${createError.message}`,
-          variant: "destructive",
-        })
-        return
-      }
-
-      console.log('Auth: Profile created successfully:', newProfile)
-      setProfile(newProfile)
-      setLoading(false)
-    } catch (error: any) {
-      console.error('Auth: Critical error creating profile:', error)
-      setLoading(false)
-      
-      toast({
-        title: "Profile Creation Error",
-        description: `Failed to create profile: ${error.message || 'Unknown error'}`,
-        variant: "destructive",
-      })
-    }
-  }
 
   const signIn = async (email: string, password: string) => {
     try {
